@@ -1,0 +1,20 @@
+requests_oauthlib
+loguru
+python-multipart
+jupyterlab
+py-cpuinfo
+GPUtil
+nvsmi
+itsdangerous
+rich_argparse
+fastapi
+requests
+sqlalchemy
+psycopg2-binary
+uvicorn
+tabulate
+expand_folders
+Cython
+uvicorn
+#pyslurm @ git+https://github.com/PySlurm/pyslurm.git
+minio
