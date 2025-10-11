@@ -1,8 +1,8 @@
 
 __all__ = [
-    "Provider",
     "APIClient",
     "get_session_api",
+    "set_session_api"
 ]
 
 import requests
@@ -10,33 +10,28 @@ import requests
 from typing import Union, List
 from tabulate import tabulate
 from urllib.parse import urljoin
-from .rest.dataset import DatasetAPIClient
-
+from novacula import schemas
+from novacula.exceptions import ConnectionError, TokenNotValidError
+from novacula.api.rest.dataset import DatasetAPIClient
 
 __api_session = None
-
-def get_session_api(host:str=None, token: str=None):
-    global __api_session
-    if not __api_session:
-        __api_session = APIClient(host,token)
-    return __api_session
-
 
 
 class APIClient:
 
-    def __init__(self, host : str, token : str):
-        self.session = requests.Session()
-        self.__token = token
-        self.host = host
-        #res = requests.get(f"{self.host}/status")
-        #if res.status_code != 200:
-        #    raise ConnectionError
-        #payload = {"params_str": schemas.json_encode( {"token":self.__token} ) }
-        #res = requests.put(f"{self.host}/remote/user/token", data=payload)
+    def __init__(self, host : str, user : str, access_key : str):
+        self.session     = requests.Session()
+        self.access_key  = access_key
+        self.host        = host
+        res = requests.get(f"{self.host}/status")
+        if res.status_code != 200:
+            raise ConnectionError
+        self.headers = {"Connection": "Keep-Alive", "Keep-Alive": "timeout=1000, max=1000", 
+                        "access_key" : access_key, 'user': user}
+        #res = requests.put(f"{self.host}/remote/user/authenticate", data=payload)
         #if res.status_code != 200:
         #    raise TokenNotValidError
-        self.headers = {"Connection": "Keep-Alive", "Keep-Alive": "timeout=1000, max=1000", "token" : self.__token}
+
 
     def post(self, path, data, files=None):
         url = urljoin(self.host, path)
@@ -60,16 +55,14 @@ class APIClient:
         return DatasetAPIClient(self)
 
 
+def set_session_api( host:str, user : str, access_key : str) -> APIClient:
+    global __api_session
+    __api_session = APIClient(host,user,access_key)
+    return __api_session
 
-class Provider:
-    r"""
-   
-    """
-    def __init__(
-        self, 
-        host: str,
-        token : str, 
-    ):
-        self.host = host
-        self.__api_client = get_session_api( host, token )
+
+def get_session_api() -> APIClient:
+    global __api_session
+    return __api_session
+
 

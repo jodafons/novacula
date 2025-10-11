@@ -1,4 +1,5 @@
 
+
 class RuntimeError(Exception):
     """Base class for errors raised by Qiskit."""
 
@@ -24,16 +25,11 @@ class ConnectionError(RuntimeError):
 class TokenNotValidError(RuntimeError):
     """Raised when an error"""
 
-    message = "the access Key is not valid."
+    message = "the token is not valid."
 
 class DownloadError(RuntimeError):
     """Raised when an error"""
 
     message = "failed to download content from server"
-
-class DatasetNotFound(RuntimeError):
-    """Raised when an error"""
-
-    message = "dataset not found into the server"
     
     
