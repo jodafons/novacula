@@ -39,10 +39,6 @@ def job( args ):
     os.makedirs( workarea, exist_ok=True)
     print(command)
     
-
-    os.environ["JOB_WORKAREA"]   = workarea
-    os.environ["JOB_ID"]         = job_id
-    device = os.environ.get("CUDA_VISIBLE_DEVICES","-1")
      
     logger.info(f"starting env builder for job {job_id}...")
     logger.info(f"workarea {workarea}...")
@@ -97,7 +93,7 @@ def job( args ):
 
         envs = {}
         envs["JOB_ID"]               = f"{job_id}"
-        envs["SLURM_JOB_ID"]        = f"{args.job_id}"
+        envs["TASK_ID"]              = f"{args.job_id}"
         envs["JOB_WORKAREA"]         = workarea 
         envs["TF_CPP_MIN_LOG_LEVEL"] = "3"
         envs["CUDA_VISIBLE_ORDER"]   = "PCI_BUS_ID"
