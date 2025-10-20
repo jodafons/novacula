@@ -60,10 +60,12 @@ class Image:
 class Dataset:
     def __init__(self, 
                  name: str,
-                 path: str
+                 path: str,
+                 from_task : Union[None, 'Task']=None,
                 ):
         self.name = name
         self.path = path
+        self.from_task = from_task
         global __datasets__
         if name in __datasets__:
             raise RuntimeError(f"a dataset with name {name} already exists inside of this group of tasks.")
@@ -101,15 +103,23 @@ class Task:
         self.partition = partition
         self.secondary_data = {key:value if type(value)==str else value.name for key, value in secondary_data.items()}
         self.binds = binds
-        self.next = []
         global __tasks__
         if name in __tasks__:
             raise RuntimeError(f"a task with name {name} already exists inside of this group of tasks.")
         __tasks__[name] = self
 
-        self.next = []
-        self.before = []
+        self.next_tasks = []
+        self.before_tasks = []
         self.job_id = None
+
+    def next(self, next_task ):
+        if (next_task) and (next_task not in self.next_tasks):
+            self.next_tasks.append( next_task )
+
+    def before(self, before_task ):
+        if (before_task) and (before_task not in self.before_tasks):
+            self.before_tasks.append( before_task )
+
 
 
     def create(self, basepath : str ):
@@ -154,14 +164,22 @@ class Task:
         #script.submit(dry_run=dry_run)
         script.dump()
 
-    def next(self, job_id , script_path : str):
-        script  = Script( f"{self.task_path}/scripts/next.sh" )
-        script += f"#!/bin/bash"
-        script += f"#SBATCH --job-name={self.name}.next"
-        script += f"sbatch {script_path}"
-        script.dump()
+ 
 
-
+    def to_raw(self):
+        d = {
+            "name": self.name,
+            "image" : self.image.path,
+            "command"  : self.command,
+            "input_data": self.input_data.name,
+            "outputs" : { key : {"file":value['file'], "data":value['data'].name} for key, value in self.outputs_data.items() },
+            "partition" : self.partition,
+            "secondary_data" : { key : value.name for key, value in self.secondary_data.items() },
+            "binds"    : self.binds,
+            "next_tasks"      : [ t.name for t in self.next_tasks ],
+            "before_tasks"    : [ t.name for t in self.before_tasks ],
+        }
+        return d
 
 
 class LocalProvider:
@@ -206,27 +224,32 @@ class Session:
         for image in __images__.values():
             image.create( f"{self.path}/images" )
 
+        # create all output datasets and substitute their strings to dataset types
         for task in __tasks__.values():
             task.create( f"{self.path}/tasks" )
-            if type(task.input_data) == str and task.input_data != "":
-                if task.input_data not in __datasets__:
-                    input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
-                    input_data.create( f"{self.path}/datasets" )
-                    task.input_data = input_data
-                else:
-                    task.input_data = __datasets__[ task.input_data ]
-            
             for key, output in task.outputs_data.items():
                 filename = output['file']
                 output_name = output['data']
                 if type(output_name) == str:
                     if output_name not in __datasets__:
-                        output_data = Dataset( name=output_name, path=f"{self.path}/datasets/{output_name}" )
+                        output_data = Dataset( name=output_name, path=f"{self.path}/datasets/{output_name}", from_task=task )
                         output_data.create( f"{self.path}/datasets" )
                         task.outputs_data[ key ]['data'] = output_data
                     else:
                         task.outputs_data[ key ]['data'] = __datasets__[ output_name ]
 
+        # substitute all input/secondary datasets to dataset types
+        for task in __tasks__.values():
+            if task.input_data == "":
+                task.input_data=None
+            else:
+                if type(task.input_data) == str:
+                    if task.input_data not in __datasets__:
+                        input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
+                        input_data.create( f"{self.path}/datasets" )
+                        task.input_data = input_data
+                    else:
+                        task.input_data = __datasets__[ task.input_data ]
             for key, secondary in task.secondary_data.items():
                 if type(secondary) == str:
                     if secondary not in __datasets__:
@@ -235,73 +258,22 @@ class Session:
                         task.secondary_data[ key ] = secondary_data
                     else:
                         task.secondary_data[ key ] = __datasets__[ secondary ]
-
-
         
-        datasets = {'inputs'   : {},'outputs'  : {},}
-        
-        # NOTE: stage 1, collect all datasets (inputs/outputs)
+        # link all tasks using datasets as link
         for task in __tasks__.values():
+            [ task.before(data.from_task) for data in task.secondary_data.values()]
             if task.input_data:
-                if not task.input_data.name in datasets["inputs"]:
-                    datasets['inputs'][task.input_data.name]=[task.name]
-                else:
-                    datasets["inputs"][task.input_data.name].append(task.name)    
-            # datasets outputs
-            for key, value in task.outputs_data.items():
-                name = value['data'].name
-                datasets["outputs"][name]=task.name
-            # datasets secondary data
-            for key, value in task.secondary_data.items():
-                name = value.name
-                if not name in datasets["inputs"]:
-                    datasets["inputs"][name] = [task.name]
-                else:
-                    datasets["inputs"][name].append(task.name)
-
-        # NOTE: stage 2: organize all names
-        task_names_dependency = {}
-        for key in datasets['inputs'].keys():
-            if key in datasets['outputs']:
-                task_names_dependency[datasets['outputs'][key]] = datasets['inputs'][key]
-            else:
-                task_names_dependency[key]=datasets['inputs'][key]
-
-        # NOTE: stage 3, create task links
-        task_names = { name:task for name, task in __tasks__.items() }
-        for task_name, next_tasks in task_names_dependency.items():
-            if task_name in task_names:
-                task = task_names[ task_name ]
-                for next_task_name in next_tasks:
-                    if next_task_name in task_names:
-                        next_task = task_names[ next_task_name ]
-                        task.next.append( next_task )
-                        next_task.before.append( task )
-
-        for task in __tasks__.values():
-            print([t.name for t in task.before], " --> ", task.name, " --> ", [t.name for t in task.next] )
-            task.init( virtualenv=self.virtualenv )
-        
-        jobs = {}
-        for task in __tasks__.values():
-
-            
-
-            if len(task.before) > 0:
-                if not any([ before_task.job_id is None for before_task in task.before ]):
-                    continue
-
-
-
-            else:
-                task.submit()
-
-
-
-
-
-            for before_task in task.before:                
-                if not before_task.job_id:
-                    break
-
+                task.before( task.input_data.from_task )
+                if task.input_data.from_task:
+                    task.input_data.from_task.next(task)
+            for secondary in task.secondary_data.values():
+                task.before(secondary.from_task )
+                if secondary.from_task:
+                    secondary.from_task.next(task)
                 
+    
+        with open(f"{self.path}/tasks.json", 'w') as f:
+            d = { name: task.to_raw() for name, task in __tasks__.items() }
+            json.dump( d , f , indent=2 )
+
+       
