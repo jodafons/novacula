@@ -18,6 +18,10 @@ from loguru         import logger
 from rich_argparse  import RichHelpFormatter
 
 
+__tasks__    = {}
+__datasets__ = {}
+__images__   = {}
+
 
 
 

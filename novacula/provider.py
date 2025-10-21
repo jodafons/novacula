@@ -19,9 +19,9 @@ from loguru import logger
 import subprocess
 
 
-__tasks__ = {}
-__datasets__ = {}
-__images__ = {}
+
+
+
 setup_logs("provider", "INFO", save=False, color="red")
 
 
