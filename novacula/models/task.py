@@ -12,6 +12,8 @@ from novacula.db import get_db_service, recreate_db, models
 from novacula import setup_logs, symlink
 from loguru import logger
 import subprocess
+
+from novacula import get_context
  
 
 class SBatch:
@@ -96,11 +98,10 @@ class Task:
             self.partition = partition
             self.secondary_data = {key:value if type(value)==str else value.name for key, value in secondary_data.items()}
             self.binds = binds
-            global __tasks__
-            if name in __tasks__:
+            ctx = get_context()
+            if self.name in ctx.tasks
                 raise RuntimeError(f"a task with name {name} already exists inside of this group of tasks.")
-            __tasks__[name] = self
-
+            ctx.tasks[ self.name ] = self
             self.next_tasks = []
             self.before_tasks = []
             self.job_id = None

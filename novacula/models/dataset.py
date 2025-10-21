@@ -7,6 +7,7 @@ import os, sys, json
 from typing import List, Dict
 from expand_folders import expand_folders
 from novacula import symlink
+from novacula import get_context
 
 class Dataset:
     
@@ -45,10 +46,10 @@ class Dataset:
             self.name = name
             self.path = path
             self.from_task = from_task
-            global __datasets__
-            if name in __datasets__:
+            ctx=get_context()
+            if name in ctx.datasets:
                 raise RuntimeError(f"a dataset with name {name} already exists inside of this group of tasks.")
-            __datasets__[name] = self
+            ctx.datasets[name] = self
 
     def mkdir(self, basepath: str):
             """

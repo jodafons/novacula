@@ -7,6 +7,7 @@ import os, sys
 from typing import List, Union, Dict
 from expand_folders import expand_folders
 from novacula import symlink
+from novacula import get_context
 
 
 
@@ -29,10 +30,10 @@ class Image:
             
             self.name = name
             self.path = path
-            global __images__
-            if name in __images__:
+            ctx = get_context()
+            if name in ctx.images:
                 raise RuntimeError(f"an image with name {name} already exists inside of this group of tasks.")
-            __images__[name] = self
+            ctx.images[name] = self
 
     def mkdir(self, basepath: str):
         """

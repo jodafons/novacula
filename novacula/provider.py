@@ -18,11 +18,9 @@ from novacula import setup_logs, symlink
 from loguru import logger
 import subprocess
 
+from novacula import get_context
 
 
-
-
-setup_logs("provider", "INFO", save=False, color="red")
 
 
 
@@ -37,18 +35,20 @@ class LocalProvider:
         self.name = name
         self.path = path
         self.virtualenv = virtualenv
-     
-
-    def __enter__(self):
         
+    def mkdir(self):
         os.makedirs(self.path + "/tasks", exist_ok=True)
         os.makedirs(self.path + "/datasets", exist_ok=True)
         os.makedirs(self.path + "/images", exist_ok=True)
         os.makedirs(self.path + "/scripts", exist_ok=True)
         os.makedirs(self.path + "/db", exist_ok=True)
-        global __tasks__, __datasets__
-        __tasks__ = {}
-        __datasets__ = {}
+     
+
+    def __enter__(self):
+        
+        self.mkdir()
+        ctx = get_context()
+        ctx.clear()
         return Session( self.path , virtualenv = self.virtualenv)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -62,6 +62,9 @@ class Session:
         self.virtualenv = virtualenv
     
     def run(self, dry_run : bool=False):
+
+        ctx = get_context()
+
 
         global __tasks__, __datasets__, __images__ 
         for dataset in __datasets__.values():
