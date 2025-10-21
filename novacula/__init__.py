@@ -10,19 +10,10 @@ __all__ = [
 
 import os
 import errno
-import uuid
-import hashlib
 import sys, argparse
 
 from loguru         import logger
 from rich_argparse  import RichHelpFormatter
-
-
-__tasks__    = {}
-__datasets__ = {}
-__images__   = {}
-
-
 
 
 def get_argparser_formatter( standard : bool=False):
@@ -61,23 +52,6 @@ def setup_logs( name , level, save : bool=False, color="cyan", prefix=""):
                    colorize=False)   
 
 
-
-
-def random_id():
-    new_uuid = uuid.uuid4()
-    return str(new_uuid)[-12:]
-
-def random_token():
-    new_uuid = str(uuid.uuid4()) + str(uuid.uuid4())
-    return new_uuid.replace('-','')
-
-def md5checksum(fname):
-    md5 = hashlib.md5()
-    f = open(fname, "rb")
-    while chunk := f.read(4096):
-        md5.update(chunk)
-    return md5.hexdigest()
-
 def symlink(target, linkpath):
     try:
         os.symlink(target, linkpath)
@@ -98,6 +72,10 @@ from . import db
 __all__.extend( db.__all__ )
 from .db import *
 
-from . import task
-__all__.extend( task.__all__ )
-from .task import *
+from . import models
+__all__.extend( models.__all__ )
+from .models import *
+
+from . import provider
+__all__.extend( provider.__all__ )
+from .provider import *

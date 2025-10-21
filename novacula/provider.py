@@ -1,27 +1,14 @@
 __all__ = [
-    "Image",
-    "Dataset",
-    "Task",
     "LocalProvider",
     "Session",
-
 ]
 
 import os, sys, json
-import subprocess
+
 from pathlib import Path
 from pprint import pprint
 from typing import List, Union, Dict
-from expand_folders import expand_folders
-from novacula.db import get_db_service, recreate_db, models
-from novacula import setup_logs, symlink
-from loguru import logger
-import subprocess
-
 from novacula import get_context
-
-
-
 
 
 
@@ -65,50 +52,48 @@ class Session:
 
         ctx = get_context()
 
-
-        global __tasks__, __datasets__, __images__ 
-        for dataset in __datasets__.values():
+        for dataset in ctx.datasets.values():
             dataset.create( f"{self.path}/datasets" )
         for image in __images__.values():
             image.create( f"{self.path}/images" )
 
         # create all output datasets and substitute their strings to dataset types
-        for task in __tasks__.values():
+        for task in ctx.tasks.values():
             task.create( f"{self.path}/tasks" )
             for key, output in task.outputs_data.items():
                 filename = output['file']
                 output_name = output['data']
                 if type(output_name) == str:
-                    if output_name not in __datasets__:
+                    if output_name not in ctx.datasets:
                         output_data = Dataset( name=output_name, path=f"{self.path}/datasets/{output_name}", from_task=task )
                         output_data.create( f"{self.path}/datasets" )
                         task.outputs_data[ key ]['data'] = output_data
                     else:
-                        task.outputs_data[ key ]['data'] = __datasets__[ output_name ]
+                        task.outputs_data[ key ]['data'] = ctx.datasets[ output_name ]
 
         # substitute all input/secondary datasets to dataset types
-        for task in __tasks__.values():
+        for task in ctx.tasks.values():
             if task.input_data == "":
                 task.input_data=None
             else:
                 if type(task.input_data) == str:
-                    if task.input_data not in __datasets__:
+                    if task.input_data not in ctx.datasets:
                         input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
                         input_data.create( f"{self.path}/datasets" )
                         task.input_data = input_data
                     else:
-                        task.input_data = __datasets__[ task.input_data ]
+                        task.input_data = ctx.datasets[ task.input_data ]
             for key, secondary in task.secondary_data.items():
                 if type(secondary) == str:
-                    if secondary not in __datasets__:
+                    if secondary not in ctx.datasets:
                         secondary_data = Dataset( name=secondary, path=f"{self.path}/datasets/{secondary}" )
                         secondary_data.create( f"{self.path}/datasets" )
                         task.secondary_data[ key ] = secondary_data
                     else:
-                        task.secondary_data[ key ] = __datasets__[ secondary ]
+                        task.secondary_data[ key ] = ctx.datasets[ secondary ]
         
         # link all tasks using datasets as link
-        for task in __tasks__.values():
+        for task in ctx.tasks.values():
             [ task.before(data.from_task) for data in task.secondary_data.values()]
             if task.input_data:
                 task.before( task.input_data.from_task )
@@ -121,10 +106,10 @@ class Session:
                 
     
         with open(f"{self.path}/tasks.json", 'w') as f:
-            d = { name: task.to_raw() for name, task in __tasks__.items() }
+            d = { name: task.to_raw() for name, task in ctx.tasks.items() }
             json.dump( d , f , indent=2 )
 
-       for task in __tasks__.values():
+       for task in ctx.tasks.values():
 
             # create all scripts and job files
             task.init( virtualenv=self.virtualenv )
