@@ -4,10 +4,10 @@ __all__ = [
 
 import os, sys, json
 
-from typing import List, Dict
+from typing import List, Dict, Union
 from expand_folders import expand_folders
 from novacula import symlink
-from novacula import get_context
+from novacula.models import get_context
 
 class Dataset:
     
@@ -68,7 +68,7 @@ class Dataset:
             """
             dirpath = f"{basepath}/{self.name}"
             os.makedirs(dirpath, exist_ok=True)
-            for target in self.files():
+            for target in self:
                 filename = target.split('/')[-1]
                 linkpath = f"{dirpath}/{filename}"
                 symlink(target, linkpath)
@@ -90,6 +90,6 @@ class Dataset:
     def __next__(self):
         if self.index >= len(self.files):
             raise StopIteration
+        path = self.files[self.index]
         self.index += 1
-        return self.files[self.index]
-        
+        return path

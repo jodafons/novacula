@@ -14,7 +14,7 @@ class Context:
 
 __context__ = Context()
 
-def get_context(self):
+def get_context():
     global __context__
     return __context__
      

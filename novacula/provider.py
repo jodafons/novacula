@@ -9,6 +9,7 @@ from pathlib import Path
 from pprint import pprint
 from typing import List, Union, Dict
 from novacula import get_context
+from novacula.models import Dataset, Image, Task
 
 
 
@@ -53,20 +54,20 @@ class Session:
         ctx = get_context()
 
         for dataset in ctx.datasets.values():
-            dataset.create( f"{self.path}/datasets" )
-        for image in __images__.values():
-            image.create( f"{self.path}/images" )
+            dataset.mkdir( f"{self.path}/datasets" )
+        for image in ctx.images.values():
+            image.mkdir( f"{self.path}/images" )
 
         # create all output datasets and substitute their strings to dataset types
         for task in ctx.tasks.values():
-            task.create( f"{self.path}/tasks" )
+            task.mkdir( f"{self.path}/tasks" )
             for key, output in task.outputs_data.items():
                 filename = output['file']
                 output_name = output['data']
                 if type(output_name) == str:
                     if output_name not in ctx.datasets:
                         output_data = Dataset( name=output_name, path=f"{self.path}/datasets/{output_name}", from_task=task )
-                        output_data.create( f"{self.path}/datasets" )
+                        output_data.mkdir( f"{self.path}/datasets" )
                         task.outputs_data[ key ]['data'] = output_data
                     else:
                         task.outputs_data[ key ]['data'] = ctx.datasets[ output_name ]
@@ -79,7 +80,7 @@ class Session:
                 if type(task.input_data) == str:
                     if task.input_data not in ctx.datasets:
                         input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
-                        input_data.create( f"{self.path}/datasets" )
+                        input_data.mkdir( f"{self.path}/datasets" )
                         task.input_data = input_data
                     else:
                         task.input_data = ctx.datasets[ task.input_data ]
@@ -109,14 +110,4 @@ class Session:
             d = { name: task.to_raw() for name, task in ctx.tasks.items() }
             json.dump( d , f , indent=2 )
 
-       for task in ctx.tasks.values():
-
-            # create all scripts and job files
-            task.init( virtualenv=self.virtualenv )
-
-            # check if this task is a ready to run task (rank zero)
-            if len(task.before_tasks) == 0:
-                logger.info( f"submitting task {task.name} to the scheduler." )
-                if not dry_run:
-                    job_id = subprocess.run( ["sbatch", f"{task.task_path}/scripts/run.sh"] )
-                    if len(task.next_tasks) > 0:
+      

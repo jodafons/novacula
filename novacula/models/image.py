@@ -7,7 +7,7 @@ import os, sys
 from typing import List, Union, Dict
 from expand_folders import expand_folders
 from novacula import symlink
-from novacula import get_context
+from novacula.models import get_context
 
 
 

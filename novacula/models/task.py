@@ -13,7 +13,9 @@ from novacula import setup_logs, symlink
 from loguru import logger
 import subprocess
 
-from novacula import get_context
+from novacula.models import get_context
+from novacula.models.image import Image 
+from novacula.models.dataset import Dataset
  
 
 class SBatch:
@@ -99,7 +101,7 @@ class Task:
             self.secondary_data = {key:value if type(value)==str else value.name for key, value in secondary_data.items()}
             self.binds = binds
             ctx = get_context()
-            if self.name in ctx.tasks
+            if self.name in ctx.tasks:
                 raise RuntimeError(f"a task with name {name} already exists inside of this group of tasks.")
             ctx.tasks[ self.name ] = self
             self.next_tasks = []
@@ -163,7 +165,7 @@ class Task:
                 pprint(d)
                 json.dump(d, f, indent=2)
 
-        script = SBatch( f"{self.task_path}/scripts/run.sh"
+        script = SBatch( f"{self.task_path}/scripts/run.sh",
                         output = f"{self.task_path}/works/job_%a/output.out",
                         error  = f"{self.task_path}/works/job_%a/output.err",
                         n_tasks = nfiles,
