@@ -46,7 +46,7 @@ class Script:
         with open (self.path, 'w') as f:
             f.write( "\n".join(self.lines) + "\n" )
             
-    def submit(self):
+    def submit(self) -> int:
         """
         Submits a Slurm batch script using 'sbatch' and returns the Job ID.
 
@@ -68,7 +68,7 @@ class Script:
             # Extract the job ID (the last word in the output)
             if "Submitted batch job" in output:
                 job_id = output.split()[-1]
-                return job_id
+                return int(job_id)
             else:
                 logger.error(f"Submission failed or unexpected sbatch output: {output}")
                 return None
@@ -258,29 +258,31 @@ class Task:
                             "output"    : f"{self.path}/works/job_%a/output.out",
                             "error"     : f"{self.path}/works/job_%a/output.err",
                             "partition" : self.partition,
-                            "job-name"  : self.name,
+                            "job-name"  : f"task-{self.task_id}",
                         }
                         )
         script += f"source {ctx.virtualenv}/bin/activate"
         script += f"njob -i {self.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json --message-level INFO -o {self.path}/works/job_$SLURM_ARRAY_TASK_ID -j $SLURM_ARRAY_JOB_ID"
         script.dump()
 
-        job_id = script.submit()
+        
+        job_id = script.submit() if not dry_run else -1
         
         
         for task in self._next:
             script = Script( f"{self.path}/scripts/run_task_{task.task_id}.sh",
                             args = {
-                                "output"    : f"{self.path}/scripts/output_{task.task_id}.out",
-                                "error"     : f"{self.path}/scripts/output_{task.task_id}.err",
-                                "job-name"  : f"task_{self.task_id}_to_task_{task.task_id}",
-                                "dependency": f"afterok:{job_id}",
+                                "output"    : f"{self.path}/scripts/run_task_{task.task_id}.out",
+                                "error"     : f"{self.path}/scripts/run_task_{task.task_id}.err",
+                                "job-name"  : f"{self.task_id}-{task.task_id}",
+                                "dependency": f"afterany:{job_id}",
                             }
             )
             script += f"source {ctx.virtualenv}/bin/activate"
             script += f"ntask -t {ctx.path}/tasks.json -i {task.task_id}"
             script.dump()
-            script.submit()
+            if not dry_run:
+                script.submit()
         
         return int(job_id)
  
@@ -376,3 +378,4 @@ def load( path : str, ctx : Context):
         for task_id, raw in data['tasks'].items():
             Task.from_raw( raw )
             
+    

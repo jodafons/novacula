@@ -12,7 +12,7 @@ from time    import sleep
 from loguru  import logger
 
 
-from novacula import setup_logs, Popen, symlink
+from novacula import setup_logs, Popen, symlink, get_context, load
 
 
 
@@ -148,14 +148,6 @@ def job( args ):
     sys.exit(0)
 
 
-def task(args):
-
-    from novacula import load 
-    ctx = get_context( clear=True )
-    load(args.tasks, ctx)
-    task = ctx.tasks[args.index]
-    task()
-        
 
 
 #
@@ -190,14 +182,15 @@ def run_task():
     parser.add_argument('-t','--tasks', action='store', dest='tasks', required = True,
                         help = "The tasks input file")
     parser.add_argument('-i','--index', action='store', dest='index', required = True,
-                        help = "The task index")
-    parser.add_argument('-m','--message-level', action='store', dest='message_level', required = False, default='INFO',
-                        help = "The job message level (DEBUG, INFO, WARNING, ERROR)")
-
+                        help = "The task index", type=int)
+  
     if len(sys.argv)==1:
         parser.print_help()
         sys.exit(1)
 
     args = parser.parse_args()
-    task( args )
-
+    ctx = get_context( clear=True )
+    load(args.tasks, ctx)
+    tasks = {task.task_id: task for task in ctx.tasks.values()}
+    tasks[args.index]()
+   

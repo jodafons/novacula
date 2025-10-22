@@ -28,7 +28,6 @@ class LocalProvider:
         os.makedirs(self.path + "/tasks", exist_ok=True)
         os.makedirs(self.path + "/datasets", exist_ok=True)
         os.makedirs(self.path + "/images", exist_ok=True)
-        os.makedirs(self.path + "/scripts", exist_ok=True)
         os.makedirs(self.path + "/db", exist_ok=True)
      
 
@@ -52,7 +51,7 @@ class Session:
     
     def run(self, dry_run : bool=False):
         ctx = get_context()
-        dump( ctx, f"{self.path}/path.json" )
+        dump( ctx, f"{self.path}/tasks.json" )
         for task in ctx.tasks.values():
             if len(task.prev)==0:
                 task( dry_run=dry_run )
