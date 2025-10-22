@@ -148,15 +148,20 @@ def job( args ):
     sys.exit(0)
 
 
+def task(args):
 
-
-
+    from novacula import load 
+    ctx = get_context( clear=True )
+    load(args.tasks, ctx)
+    task = ctx.tasks[args.index]
+    task()
+        
 
 
 #
 # args 
 #
-def run():
+def run_job():
 
     parser = argparse.ArgumentParser(description = '', add_help = False)
     parser = argparse.ArgumentParser()
@@ -176,3 +181,23 @@ def run():
 
     args = parser.parse_args()
     job( args )
+    
+def run_task():
+
+    parser = argparse.ArgumentParser(description = '', add_help = False)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-t','--tasks', action='store', dest='tasks', required = True,
+                        help = "The tasks input file")
+    parser.add_argument('-i','--index', action='store', dest='index', required = True,
+                        help = "The task index")
+    parser.add_argument('-m','--message-level', action='store', dest='message_level', required = False, default='INFO',
+                        help = "The job message level (DEBUG, INFO, WARNING, ERROR)")
+
+    if len(sys.argv)==1:
+        parser.print_help()
+        sys.exit(1)
+
+    args = parser.parse_args()
+    task( args )
+

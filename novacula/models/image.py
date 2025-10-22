@@ -58,4 +58,32 @@ class Image:
         symlink(self.path, linkpath)
     
 
+    def to_raw(self) -> Dict:
+        """
+        Convert the image instance to a raw dictionary representation.
 
+        Returns:
+            Dict: A dictionary containing the image's name and path.
+        """
+        
+        return {
+            'name' : self.name,
+            'path' : self.path,
+        }
+
+    @classmethod
+    def from_raw(cls, raw: Dict) -> 'Image':
+        """
+        Create an Image instance from a raw dictionary representation.
+
+        Parameters:
+            raw (Dict): A dictionary containing the image's attributes.
+
+        Returns:
+            Image: An instance of the Image class initialized with the provided attributes.
+        """
+        
+        return cls(
+            name=raw['name'],
+            path=raw['path'],
+        )

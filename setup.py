@@ -31,8 +31,9 @@ setup(
         'Programming Language :: Python :: 3.8',
     ],
     entry_points = {
-        #'console_scripts' : [
-        #    'novacula = novacula.main:run',
-        #]
+        'console_scripts' : [
+            'njob = novacula.job:run_job',
+            'ntask = novacula.job:run_task',
+        ]
     }
 )

@@ -3,10 +3,12 @@ __all__ = [ "get_context"]
 
 
 class Context:
-    def __init__(self):
+    def __init__(self, path : str="", virtualenv : str=""):
         self.tasks = {}
         self.datasets = {}
         self.images = {}
+        self.path = path
+        self.virtualenv = virtualenv
     def clear(self):
         self.tasks = {}
         self.datasets = {}
@@ -14,8 +16,10 @@ class Context:
 
 __context__ = Context()
 
-def get_context():
+def get_context(clear : bool=False):
     global __context__
+    if clear:
+        __context__.clear()
     return __context__
      
 

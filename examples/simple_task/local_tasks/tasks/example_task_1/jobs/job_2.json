@@ -1,0 +1,18 @@
+{
+  "input_data": "/home/joao.pinto/new_git_repos/novacula/examples/simple_task/input_data_1/2.json",
+  "outputs": {
+    "OUT": {
+      "name": "output.json",
+      "target": "/home/joao.pinto/new_git_repos/novacula/examples/simple_task/local_tasks/datasets/example_task_1.output.json"
+    }
+  },
+  "secondary_data": {},
+  "image": "/home/joao.pinto/new_git_repos/novacula/examples/simple_task/python3.10.sif",
+  "job_id": 2,
+  "command": "python /home/joao.pinto/new_git_repos/novacula/examples/simple_task/app.py --job %IN --output %OUT",
+  "binds": {
+    "/mnt/cern_data": "/mnt/cern_data"
+  },
+  "job_name": "",
+  "task_name": "example_task_1"
+}
