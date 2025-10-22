@@ -2,31 +2,20 @@ __all__ = [
     "Task",
 ]
 
-import os, sys, json
-import subprocess
-from pathlib import Path
-from pprint import pprint
-from typing import List, Union, Dict
-from expand_folders import expand_folders
-from novacula.db import get_db_service, recreate_db, models
-from novacula import setup_logs, symlink
-from loguru import logger
-import subprocess
+import os, json
 
+from pprint import pprint
+from typing import Union, Dict, List
 from novacula.models import get_context
 from novacula.models.image import Image 
 from novacula.models.dataset import Dataset
  
 
-class SBatch:
+class Script:
     def __init__(self, 
-                     path       : str,
-                     partition  : str=None,
-                     output     : str=None,
-                     error      : str=None,
-                     n_tasks    : int=None,
-                     name       : str=None
-                    ):
+                 path : str,
+                 args : Dict[str, Union[str, int]] = {}
+            ):
             """
             Initializes a new instance of the class.
 
@@ -42,17 +31,9 @@ class SBatch:
             """
             self.path = path
             self.lines = [f"#!/bin/bash"]
-            if partition:
-                self.lines.append( f"#SBATCH --partition={partition}" )
-            if output:
-                self.lines.append( f"#SBATCH --output={output}" )
-            if error:
-                self.lines.append( f"#SBATCH --error={error}" )
-            if n_tasks is not None:
-                self.lines.append( f"#SBATCH --array=0-{n_tasks-1}" )
-            if name:
-                self.lines.append( f"#SBATCH --job-name={name}" )
-        
+            for key, value in args.items():
+                self.lines.append( f"#SBATCH --{key}={value}" )
+
     def __add__(self, line : str):
         self.lines.append(line)
         return self
@@ -104,9 +85,8 @@ class Task:
             if self.name in ctx.tasks:
                 raise RuntimeError(f"a task with name {name} already exists inside of this group of tasks.")
             ctx.tasks[ self.name ] = self
-            self.next_tasks = []
-            self.before_tasks = []
-            self.job_id = None
+            self._next = []
+            self._prev = []
 
 
     def mkdir(self, basepath: str):
@@ -144,6 +124,30 @@ class Task:
             """
             return f"{self.name}.{self.outputs_data[key]['file']}"
     
+    @property
+    def next(self) -> List['Task']:
+        return self._next
+    
+    @property
+    def prev(self) -> List['Task']:
+        return self._prev
+    
+    @next.setter 
+    def next( self, tasks : Union['Task' , List['Task']] ):
+        if type(tasks) != list:
+            tasks = [ tasks ]
+        for task in tasks:
+            if task and (task not in self._next):
+                self._next.append( task )
+         
+    @prev.setter
+    def prev( self, tasks : Union['Task' , List['Task']] ):
+        if type(tasks) != list:
+            tasks = [ tasks ]
+        for task in tasks:
+            if task and (task not in self._prev):
+                self._prev.append( task )
+                
 
     def __call__(self , virtualenv : str=""):
 
@@ -165,14 +169,15 @@ class Task:
                 pprint(d)
                 json.dump(d, f, indent=2)
 
-        script = SBatch( f"{self.task_path}/scripts/run.sh",
-                        output = f"{self.task_path}/works/job_%a/output.out",
-                        error  = f"{self.task_path}/works/job_%a/output.err",
-                        n_tasks = nfiles,
-                        name   = self.name,
-                        partition = self.partition
+        script = Script( f"{self.task_path}/scripts/run.sh", 
+                        args = {
+                            "array"     : f"0-{nfiles-1}",
+                            "output"    : f"{self.task_path}/works/job_%a/output.out",
+                            "error"     : f"{self.task_path}/works/job_%a/output.err",
+                            "partition" : self.partition,
+                            "job-name"  : self.name,
+                        }
                         )
-        
         script += f"source {virtualenv}/bin/activate"
         script += f"njob -i {self.task_path}/jobs/job_$SLURM_ARRAY_TASK_ID.json --message-level INFO -o {self.task_path}/works/job_$SLURM_ARRAY_TASK_ID -j $SLURM_ARRAY_JOB_ID"
         script.dump()
@@ -189,7 +194,7 @@ class Task:
             "partition" : self.partition,
             "secondary_data" : { key : value.name for key, value in self.secondary_data.items() },
             "binds"    : self.binds,
-            "next_tasks"      : [ t.name for t in self.next_tasks ],
-            "before_tasks"    : [ t.name for t in self.before_tasks ],
+            #"next_tasks"      : [ t.name for t in self.next_tasks ],
+            #"before_tasks"    : [ t.name for t in self.before_tasks ],
         }
         return d

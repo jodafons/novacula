@@ -62,7 +62,6 @@ class Session:
         for task in ctx.tasks.values():
             task.mkdir( f"{self.path}/tasks" )
             for key, output in task.outputs_data.items():
-                filename = output['file']
                 output_name = output['data']
                 if type(output_name) == str:
                     if output_name not in ctx.datasets:
@@ -74,16 +73,14 @@ class Session:
 
         # substitute all input/secondary datasets to dataset types
         for task in ctx.tasks.values():
-            if task.input_data == "":
-                task.input_data=None
-            else:
-                if type(task.input_data) == str:
-                    if task.input_data not in ctx.datasets:
-                        input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
-                        input_data.mkdir( f"{self.path}/datasets" )
-                        task.input_data = input_data
-                    else:
-                        task.input_data = ctx.datasets[ task.input_data ]
+           
+            if type(task.input_data) == str:
+                if task.input_data not in ctx.datasets:
+                    input_data = Dataset( name=task.input_data, path=f"{self.path}/datasets/{task.input_data}" )
+                    input_data.mkdir( f"{self.path}/datasets" )
+                    task.input_data = input_data
+                else:
+                    task.input_data = ctx.datasets[ task.input_data ]
             for key, secondary in task.secondary_data.items():
                 if type(secondary) == str:
                     if secondary not in ctx.datasets:
@@ -95,15 +92,14 @@ class Session:
         
         # link all tasks using datasets as link
         for task in ctx.tasks.values():
-            [ task.before(data.from_task) for data in task.secondary_data.values()]
-            if task.input_data:
-                task.before( task.input_data.from_task )
-                if task.input_data.from_task:
-                    task.input_data.from_task.next(task)
+            task.prev = [data.from_task for data in task.secondary_data.values()]
+            task.prev = task.input_data.from_task
+            if task.input_data.from_task:
+                task.input_data.from_task.next+=[task]
             for secondary in task.secondary_data.values():
-                task.before(secondary.from_task )
+                task.prev=secondary.from_task
                 if secondary.from_task:
-                    secondary.from_task.next(task)
+                    secondary.from_task.next=task
                 
     
         with open(f"{self.path}/tasks.json", 'w') as f:
