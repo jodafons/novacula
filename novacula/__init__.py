@@ -28,10 +28,6 @@ def get_hash( path : str) -> str:
             hasher.update(chunk)
     return hasher.hexdigest()
 
-def random_id():
-    new_uuid = uuid.uuid4()
-    return str(new_uuid)[-12:]
-
 def get_argparser_formatter():
     RichHelpFormatter.styles["argparse.args"]     = "green"
     RichHelpFormatter.styles["argparse.prog"]     = "bold grey50"
@@ -77,7 +73,9 @@ def symlink(target, linkpath):
         else:
             raise e
       
-
+from . import sbatch 
+__all__.extend( sbatch.__all__ )
+from .sbatch import *
          
 from . import popen 
 __all__.extend( popen.__all__ )
