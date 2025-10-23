@@ -1,5 +1,5 @@
 __all__ = [
-    "Script"
+    "sbatch"
 ]
 
 import subprocess
@@ -11,7 +11,7 @@ from loguru import logger
 
 
 
-class Script:
+class sbatch:
     def __init__(self, 
                  path : str,
                  args : Dict[str, Union[str, int]] = {}
@@ -50,6 +50,7 @@ class Script:
             str: The extracted Slurm Job ID, or None if submission failed.
         """
         command = f"sbatch {self.path}"
+        self.dump()
 
         try:
             # shlex.split is used to correctly handle paths with spaces, etc.

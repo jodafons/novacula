@@ -2,17 +2,17 @@ __all__ = [
     "Task",
     "load",
     "dump",
-    "Script"
 ]
 
 import os, json
 
-from typing import Union, Dict, List
-from novacula.models import get_context, Context
-from novacula.models.image import Image 
+from typing                  import Union, Dict, List
+from novacula.models         import get_context, Context
+from novacula.models.image   import Image 
 from novacula.models.dataset import Dataset
-from novacula.db import get_db_service, models
-from loguru import logger
+from novacula.db             import get_db_service, models
+from novacula                import sbatch
+from loguru                  import logger
 
 
 
@@ -20,30 +20,31 @@ from loguru import logger
 class Task:
     
     def __init__(self,
-                 name           : str,
-                 image          : Union[str,Image],
-                 command        : str,
-                 input_data     : Union[str, Dataset],
-                 outputs        : Dict[str,str],
-                 partition      : str,
-                 secondary_data : Dict[str, Union[str, Dataset]] = {},
-                 binds          : Dict[str,str] = {},
-        ):
+                     name           : str,
+                     image          : Union[str, Image],
+                     command        : str,
+                     input_data     : Union[str, Dataset],
+                     outputs        : Dict[str, str],
+                     partition      : str,
+                     secondary_data : Dict[str, Union[str, Dataset]] = {},
+                     binds          : Dict[str, str] = {},
+            ):
             """
             Initializes a new task with the given parameters.
 
             Parameters:
             - name (str): The name of the task.
-            - image (Image): The image associated with the task.
-            - command (str): The command to execute for the task.
-            - input_data (Union[str, Dataset]): The input data for the task, can be a string or a Dataset object.
-            - outputs (Dict[str, str]): A dictionary mapping output names to their corresponding file names.
+            - image (Union[str, Image]): The image associated with the task, can be a string or an Image object.
+            - command (str): The command to be executed for the task, must contain placeholders for input and output data.
+            - input_data (Union[str, Dataset]): The input data for the task, can be a string representing the dataset name or a Dataset object.
+            - outputs (Dict[str, str]): A dictionary mapping output names to their respective dataset names.
             - partition (str): The partition to which the task belongs.
-            - secondary_data (Dict[str, Union[str, Dataset]], optional): Additional data associated with the task, defaults to an empty dictionary.
-            - binds (Dict[str, str], optional): A dictionary for binding parameters, defaults to an empty dictionary.
+            - secondary_data (Dict[str, Union[str, Dataset]], optional): A dictionary of secondary data for the task, defaults to an empty dictionary.
+            - binds (Dict[str, str], optional): A dictionary of binds for the task, defaults to an empty dictionary.
 
             Raises:
-            - RuntimeError: If a task with the same name already exists in the group of tasks.
+            - ValueError: If the command does not contain the required placeholders for input, output, or secondary data.
+            - Exception: If the input dataset or image is not found in the context, or if a task with the same name already exists.
             """
             
             self.name = name
@@ -63,12 +64,12 @@ class Task:
             if type(input_data) == str:
                 if input_data not in ctx.datasets:
                     Exception(f"input dataset {input_data} not found in the group of tasks.")
-                input_data = ctx.datasets[ input_data ]
+                input_data = ctx.datasets[input_data]
             
             if type(image) == str:
                 if image not in ctx.images:
                     Exception(f"image {image} not found in the group of tasks.")
-                image = ctx.images[ image ]
+                image = ctx.images[image]
             
             self.image = image
 
@@ -76,7 +77,7 @@ class Task:
                 raise Exception(f"a task with name {name} already exists inside of this group of tasks.")
             
             self.task_id = len(ctx.tasks)
-            ctx.tasks[ self.name ] = self   
+            ctx.tasks[self.name] = self   
             self.input_data = input_data            
             self.partition = partition
             self.binds = binds
@@ -86,25 +87,25 @@ class Task:
             for key in outputs.keys():
                 if type(outputs[key]) == str:
                     name = f"{self.name}.{outputs[key]}"
-                    output_data = Dataset( name=name, 
-                                           path=f"{ctx.path}/datasets/{name}", from_task=self )
-                    outputs[ key ] = output_data
+                    output_data = Dataset(name=name, 
+                                           path=f"{ctx.path}/datasets/{name}", from_task=self)
+                    outputs[key] = output_data
                     
             for key in secondary_data.keys():
                 if type(secondary_data[key]) == str:
                     if secondary_data[key] not in ctx.datasets:
                         Exception(f"secondary dataset {secondary[key]} not found in the group of tasks.")
                     else:
-                        secondary_data[ key ] = ctx.datasets[ secondary_data[key] ]
+                        secondary_data[key] = ctx.datasets[secondary_data[key]]
 
                 secondary = secondary_data[key]
                 if secondary.from_task:
-                    secondary.from_task.next+=[self]
-                    self._prev+=[ secondary.from_task ]
-        
+                    secondary.from_task.next += [self]
+                    self._prev += [secondary.from_task]
+            
             if self.input_data.from_task:
-                self.input_data.from_task.next+=[self]
-                self._prev+=[ self.input_data.from_task ]
+                self.input_data.from_task.next += [self]
+                self._prev += [self.input_data.from_task]
             
             self.outputs_data = outputs
             self.secondary_data = secondary_data
@@ -171,28 +172,41 @@ class Task:
             return self.outputs_data[key].name
     
 
-    def submit(self, dry_run : bool=False) -> int:
-        
-        ctx = get_context()
-        db_service = get_db_service()
-        self._update_db()   
-        script = Script( f"{self.path}/scripts/run_task_{self.task_id}.sh", 
-                        args = {
-                            "array"     : ",".join( [str(job_id) for job_id in self.get_array_of_jobs_with_status() ]),
-                            "output"    : f"{self.path}/works/job_%a/output.out",
-                            "error"     : f"{self.path}/works/job_%a/output.err",
-                            "partition" : self.partition,
-                            "job-name"  : f"run-{self.task_id}",
-                        })
-        script += f"source {ctx.virtualenv}/bin/activate"
-        command = f"njob "
-        command+= f" -i {self.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json"
-        command+= f" -o {self.path}/works/job_$SLURM_ARRAY_TASK_ID"
-        command+= f" -d {ctx.path}/db/data.db"
-        script += command
-        script.dump()
-        job_id = script.submit() if not dry_run else -1
-        return int(job_id)
+    def submit(self) -> int:
+            """
+            Submits a job to the job scheduler.
+
+            This method performs the following steps:
+            1. Retrieves the current context and database service.
+            2. Updates the database with the current task information.
+            3. Constructs a script to run the task using sbatch.
+            4. Activates the virtual environment.
+            5. Prepares the njob command with necessary parameters.
+            6. Submits the job and returns the job ID.
+
+            Returns:
+                int: The ID of the submitted job.
+            """
+            
+            ctx = get_context()
+            db_service = get_db_service()
+            self._update_db()   
+            script = sbatch( f"{self.path}/scripts/run_task_{self.task_id}.sh", 
+                            args = {
+                                "array"     : ",".join( [str(job_id) for job_id in self.get_array_of_jobs_with_status() ]),
+                                "output"    : f"{self.path}/works/job_%a/output.out",
+                                "error"     : f"{self.path}/works/job_%a/output.err",
+                                "partition" : self.partition,
+                                "job-name"  : f"run-{self.task_id}",
+                            })
+            script += f"source {ctx.virtualenv}/bin/activate"
+            command = f"njob "
+            command+= f" -i {self.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json"
+            command+= f" -o {self.path}/works/job_$SLURM_ARRAY_TASK_ID"
+            command+= f" -d {ctx.path}/db/data.db"
+            script += command
+            job_id = script.submit() 
+            return int(job_id)
  
  
     def to_raw(self) -> Dict:
