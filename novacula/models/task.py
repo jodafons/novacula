@@ -225,7 +225,7 @@ class Task:
             os.makedirs(self.path + "/scripts"  , exist_ok=True)
             self._create_db()
 
-
+    
     def output(self, key: str) -> str:
             """
             Generate the output file path based on the provided key.
@@ -243,46 +243,30 @@ class Task:
             return self.outputs_data[key].name
     
 
-    def __call__(self, dry_run : bool=False) -> int:
+    def submit(self, dry_run : bool=False) -> int:
         
         ctx = get_context()
         db_service = get_db_service()
-                
+        self._update_db()   
         script = Script( f"{self.path}/scripts/run_task_{self.task_id}.sh", 
                         args = {
-                            "array"     : ",".join( [str(job_id) for job_id in self._get_array_of_jobs_with_status( models.JobStatus.ASSIGNED ) ]),
+                            "array"     : ",".join( [str(job_id) for job_id in self.get_array_of_jobs_with_status() ]),
                             "output"    : f"{self.path}/works/job_%a/output.out",
                             "error"     : f"{self.path}/works/job_%a/output.err",
                             "partition" : self.partition,
-                            "job-name"  : f"task-{self.task_id}",
-                        }
-                        )
+                            "job-name"  : f"run-{self.task_id}",
+                        })
         script += f"source {ctx.virtualenv}/bin/activate"
-        script += f"njob -i {self.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json --message-level INFO -o {self.path}/works/job_$SLURM_ARRAY_TASK_ID -j $SLURM_ARRAY_JOB_ID"
+        command = f"njob "
+        command+= f" -i {self.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json"
+        command+= f" -o {self.path}/works/job_$SLURM_ARRAY_TASK_ID"
+        command+= f" -d {ctx.path}/db/data.db"
+        script += command
         script.dump()
-
-        
         job_id = script.submit() if not dry_run else -1
-        
-        
-        for task in self._next:
-            script = Script( f"{self.path}/scripts/run_task_{task.task_id}.sh",
-                            args = {
-                                "output"    : f"{self.path}/scripts/run_task_{task.task_id}.out",
-                                "error"     : f"{self.path}/scripts/run_task_{task.task_id}.err",
-                                "job-name"  : f"{self.task_id}-{task.task_id}",
-                                "dependency": f"afterany:{job_id}",
-                            }
-            )
-            script += f"source {ctx.virtualenv}/bin/activate"
-            script += f"ntask -t {ctx.path}/tasks.json -i {task.task_id}"
-            script.dump()
-            if not dry_run:
-                script.submit()
-        
         return int(job_id)
  
-
+ 
     def to_raw(self) -> Dict:
             """
             Converts the current task instance into a raw dictionary representation.
@@ -326,79 +310,118 @@ class Task:
             binds = data['binds'],
         )
         
-    def _create_db(self):
+    #
+    # database methods
+    #
         
-        db_service = get_db_service()
-        if not db_service.task(self.name).check_existence():
-            with db_service() as session:
-                db_task = models.Task()
-                #db_task.task_id = self.task_id
-                db_task.name = self.name
-                session.add( db_task )
-                session.commit()
-
-
     def _create_db(self):
-     
-        db_service = get_db_service()
- 
-        with db_service() as session:
-            try:
-                if session.query(models.Task).filter_by(name=self.name).count() == 0:
-                    task_db = models.Task()
-                    task_db.name = self.name
-                else:
-                    task_db = session.query(models.Task).filter_by(name=self.name).one()
-                    
-                job_id = len(task_db.jobs)
-                    
-                for filepath in self.input_data:
-                    filename = filepath.split('/')[-1]
-                    if session.query(models.Job).filter_by(task_name=self.name, filename=filename).count() == 0:
-                                            
-                        path = f"{self.path}/jobs/job_{job_id}.json"
-                        with open( path, 'w') as f:
-                            d = {
-                                "input_data"    : filepath,
-                                "outputs"       : { key : {"name":value.name.replace(f"{self.name}.",""), "target":value.path} for key, value in self.outputs_data.items() },
-                                "secondary_data": {},
-                                "image"         : self.image.path,
-                                "job_id"        : job_id,
-                                "task_id"       : self.task_id,
-                                "command"       : self.command,
-                                "binds"         : self.binds,
-                                "job_name"      : "",
-                                "task_name"     : self.name,
-                            }
-                            json.dump(d, f, indent=2)
+            """
+            Creates a new task in the database if it does not already exist.
 
-                        job_db          = models.Job()
-                        job_db.job_id   = job_id 
-                        job_db.filename = filename
-                        task_db        += job_db 
-                        job_id         += 1
-                        
-                session.add(task_db)
-                logger.info(f"creating task with name {self.name}")
-                session.commit()
-            finally:
-                session.close()
+            This method checks for the existence of a task with the given name.
+            If the task does not exist, it creates a new Task object, adds it to
+            the session, and commits the transaction.
 
+            Note: The task_id assignment is currently commented out and may need
+            to be implemented based on the application's requirements.
+            """
             
-    def _get_array_of_jobs_with_status(self, status : models.JobStatus = models.JobStatus.COMPLETED ) -> List[int]:
-        
-        db_service = get_db_service()
-        jobs = []
-        with db_service() as session:
-            try:
-                print(self.name)
-                task_db = session.query(models.Task).filter_by(name=self.name).first()
-                for job in task_db.jobs:
-                    if job.status == status:
-                        jobs.append( job.job_id )
-            finally:
-                session.close()
-        return jobs
+            db_service = get_db_service()
+            if not db_service.task(self.name).check_existence():
+                with db_service() as session:
+                    task_db = models.Task()
+                    task_db.task_id = self.task_id
+                    task_db.name = self.name
+                    session.add(task_db)
+                    session.commit()
+
+    def _update_db(self):
+            """
+            Updates the database with new job entries associated with the current task.
+
+            This method retrieves the task from the database using its name, checks for existing jobs,
+            and creates new job entries based on the input data provided. Each job is saved as a JSON file
+            in a specified directory, and the job information is stored in the database.
+
+            The following steps are performed:
+            1. Retrieve the database session.
+            2. Query the task by name.
+            3. Iterate over the input data to create job entries.
+            4. Check if a job with the same filename already exists.
+            5. If not, create a new job entry and save it to the database and as a JSON file.
+            6. Commit the changes to the database.
+
+            Note: This method assumes that the `self.input_data`, `self.outputs_data`, `self.image`, 
+            `self.path`, `self.command`, and `self.binds` attributes are properly initialized before calling 
+            this method.
+            """
+            
+            db_service = get_db_service()
+     
+            with db_service() as session:
+                try:
+                 
+                    task_db = session.query(models.Task).filter_by(name=self.name).one()    
+                    job_id = len(task_db.jobs)
+                        
+                    for filepath in self.input_data:
+                        filename = filepath.split('/')[-1]
+                        if session.query(models.Job).filter_by(task_name=self.name, filename=filename).count() == 0:
+                                                
+                            path = f"{self.path}/jobs/job_{job_id}.json"
+                            with open( path, 'w') as f:
+                                d = {
+                                    "input_data"    : filepath,
+                                    "outputs"       : { key : {"name":value.name.replace(f"{self.name}.",""), "target":value.path} for key, value in self.outputs_data.items() },
+                                    "secondary_data": {},
+                                    "image"         : self.image.path,
+                                    "job_id"        : job_id,
+                                    "task_id"       : self.task_id,
+                                    "command"       : self.command,
+                                    "binds"         : self.binds,
+                                    "job_name"      : "",
+                                    "task_name"     : self.name,
+                                }
+                                json.dump(d, f, indent=2)
+
+                            job_db          = models.Job()
+                            job_db.job_id   = job_id 
+                            job_db.filename = filename
+                            task_db        += job_db 
+                            job_id         += 1
+                            
+                    logger.info(f"creating task with name {self.name}")
+                    session.commit()
+                finally:
+                    session.close()
+            
+    def get_array_of_jobs_with_status(self, status: models.JobStatus = models.JobStatus.ASSIGNED) -> List[int]:
+            """
+            Retrieve an array of job IDs with a specified status.
+
+            This method queries the database for jobs associated with the current task name
+            that match the given status. It returns a list of job IDs.
+
+            Args:
+                status (models.JobStatus): The status of the jobs to retrieve. Defaults to
+                models.JobStatus.ASSIGNED.
+
+            Returns:
+                List[int]: A list of job IDs that match the specified status.
+
+            Note:
+                Ensure that the database service is properly configured and accessible.
+            """
+            
+            db_service = get_db_service()
+            jobs = []
+            with db_service() as session:
+                try:
+                    jobs_db = session.query(models.Job).filter_by(task_name=self.name, status=status).all()
+                    jobs += [job_db.job_id for job_db in jobs_db]
+                finally:
+                    session.close()
+            return jobs
         
 #
 # read and write functions

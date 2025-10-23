@@ -22,12 +22,11 @@ minutes=60 # seconds
 class TaskStatus(enum.Enum):
 
     ASSIGNED       = "assigned"
-    CREATING       = "creating"
-    PENDING        = "pending"
     RUNNING        = "running"
     COMPLETED      = "completed"
     FINALIZED      = "finalized"
     FAILED         = "failed"
+    CANCELED       = "canceled"
     
 
 

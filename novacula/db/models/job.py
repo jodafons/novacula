@@ -57,15 +57,15 @@ class Job (Base):
 
 class DBJob:
 
-    def __init__(self, task_id : int, job_id : int, session):
+    def __init__(self, task_name : int, job_id : int, session):
         self.job_id = job_id
-        self.task_id = task_id
+        self.task_name = task_name
         self.__session = session
 
     def update_status(self, status : JobStatus):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
             setattr(job, "status", status)
             job.ping()
             session.commit()
@@ -78,7 +78,7 @@ class DBJob:
             fields = [Job.status]
             job = (
                 session.query(Job)
-                .filter_by(task_id=self.task_id, job_id=self.job_id).one()
+                .filter_by(task_name=self.task_name, job_id=self.job_id).one()
                 .options(load_only(*fields))
                 .one()
             )
@@ -89,7 +89,7 @@ class DBJob:
     def ping(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
             job.ping()
             session.commit()
         finally:

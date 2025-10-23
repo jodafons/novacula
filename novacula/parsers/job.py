@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+
+
 import glob
 import json
 import argparse
@@ -7,18 +9,17 @@ import traceback
 import shutil
 import os, sys
 
-from pprint  import pprint
-from time    import sleep
-from loguru  import logger
-
-
-from novacula import setup_logs, Popen, symlink, get_context, load
-from novacula.db import get_db_service
-from novacula.db import JobStatus as status
+from pprint         import pprint
+from time           import sleep
+from loguru         import logger
+from novacula       import get_argparser_formatter
+from novacula       import setup_logs, Popen, symlink, get_context
+from novacula.db    import get_db_service
+from novacula.db    import JobStatus as status
 
 
          
-def job( args ):
+def run( args ):
 
   
     workarea = args.output
@@ -37,9 +38,9 @@ def job( args ):
         task_envs    = {}
 
     db_service  = get_db_service(args.db_file)
-    job_service = db_service.job( task_id, job_id )
+    job_service = db_service.job( task_name, job_id )
     job_service.start_clock()
-    job_service.update_status(status.ASSIGNED)
+    job_service.update_status(status.PENDING)
 
 
     setup_logs(job_name, args.message_level, save=False, color="red")
@@ -171,17 +172,14 @@ def job( args ):
 #
 # args 
 #
-def run_job():
+def run():
+    formatter_class = get_argparser_formatter()
 
-    parser = argparse.ArgumentParser(description = '', add_help = False)
-    parser = argparse.ArgumentParser()
-
+    parser    = argparse.ArgumentParser(formatter_class=formatter_class)
     parser.add_argument('-i','--input', action='store', dest='input', required = True,
                         help = "The job input file")
     parser.add_argument('-o','--output', action='store', dest='output', required = False, default='circuit.json',
                         help = "The job output")
-    parser.add_argument('-j', '--job-id', action='store', dest='job_id', required=False,
-                        help="The job ID")
     parser.add_argument('-d','--db-file', action='store', dest='db_file', required = True,
                         help = "The database file")
     parser.add_argument('-m','--message-level', action='store', dest='message_level', required = False, default='INFO',
@@ -194,23 +192,5 @@ def run_job():
     args = parser.parse_args()
     job( args )
     
-def run_task():
+    
 
-    parser = argparse.ArgumentParser(description = '', add_help = False)
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-t','--tasks', action='store', dest='tasks', required = True,
-                        help = "The tasks input file")
-    parser.add_argument('-i','--index', action='store', dest='index', required = True,
-                        help = "The task index", type=int)
-  
-    if len(sys.argv)==1:
-        parser.print_help()
-        sys.exit(1)
-
-    args = parser.parse_args()
-    ctx = get_context( clear=True )
-    load(args.tasks, ctx)
-    tasks = {task.task_id: task for task in ctx.tasks.values()}
-    tasks[args.index]()
-   
