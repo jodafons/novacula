@@ -1,3 +1,21 @@
+
+
+"""
+This module defines the Task class, which represents a computational task
+that can be executed within a specific context. The Task class manages
+various attributes related to the task, including its name, associated
+image, command to be executed, input and output data, and task dependencies.
+
+Key functionalities of the Task class include:
+- Initialization of task parameters with validation.
+- Creation of necessary directory structures for task execution.
+- Submission of the task to a job scheduler.
+- Conversion of the task instance into a raw dictionary representation for serialization.
+
+The module also imports necessary components from other parts of the application,
+including context management, database services, and logging utilities.
+"""
+
 __all__ = [
     "Task",
     "load",
@@ -14,7 +32,22 @@ from novacula.db             import get_db_service, models
 from novacula                import sbatch
 from loguru                  import logger
 
+# ... rest of the Task class code ...
+__all__ = [
+    "Task",
+    "load",
+    "dump",
+]
 
+import os, json
+
+from typing                  import Union, Dict, List
+from novacula.models         import get_context, Context
+from novacula.models.image   import Image 
+from novacula.models.dataset import Dataset
+from novacula.db             import get_db_service, models
+from novacula                import sbatch
+from loguru                  import logger
 
 
 class Task:
