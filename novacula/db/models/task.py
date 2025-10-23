@@ -36,33 +36,13 @@ class TaskStatus(enum.Enum):
 class Task (Base):
 
     __tablename__    = 'task'
-    id               = Column(Integer, autoincrement=False, primary_key=True)
-    task_id          = Column(String(64))
+    id               = Column(Integer, primary_key=True)
+    task_id          = Column(Integer)
     name             = Column(String, unique=True)
     jobs             = relationship("Job", order_by="Job.id", back_populates="task")
-    parents_str      = Column(String, default="[]")
-    childrens_str    = Column(String, default="[]")
     status           = Column(Enum(TaskStatus), default=TaskStatus.ASSIGNED )
-    start_time       = Column(DateTime)
-    updated_time     = Column(DateTime)
-
-
-
-    @property
-    def parents( self ) -> List[str]:
-        return eval(self.parents_str)
-
-    @parents.setter
-    def parents( self, parents : List[str]):
-        self.parents_str = str(parents)
-
-    def add_parent( self, task_id : str ):
-        parents = eval(self.parents_str); parents.append(task_id)
-        self.parents_str = str(parents)
-    
-    def add_child( self, task_id : str ):
-        childrens = eval(self.childrens_str); childrens.append(task_id)
-        self.childrens_str = str(childrens)
+    start_time       = Column(DateTime, default=datetime.now())
+    updated_time     = Column(DateTime, default=datetime.now())
 
     def __add__ (self, exp):
       self.jobs.append(exp)
@@ -91,21 +71,17 @@ class DBTask:
             return task.status
         finally:
             session.close()
-
-    def fetch_parents(self) -> List[str]:
+     
+    def update_status(self, status : TaskStatus):
         session = self.__session()
         try:
-            fields = [Task.parents_str]
-            task = (
-                session.query(Task)
-                .filter_by(task_id=self.task_id)
-                .options(load_only(*fields))
-                .one()
-            )
-            return task.parents
+            task = session.query(Task).filter_by(task_id=self.task_id).one()
+            setattr(task, "status", status)
+            task.ping()
+            session.commit()
         finally:
             session.close()
-            
+     
     def fetch_name(self):
         session = self.__session()
         try:

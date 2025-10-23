@@ -10,7 +10,7 @@ from pprint import pprint
 from typing import List, Union, Dict
 from novacula import get_context, dump
 from novacula.models import Dataset, Image, Task
-
+from novacula.db import get_db_service, create_db
 
 
 class Flow:
@@ -51,7 +51,7 @@ class Flow:
         os.makedirs(self.path + "/datasets", exist_ok=True)
         os.makedirs(self.path + "/images", exist_ok=True)
         os.makedirs(self.path + "/db", exist_ok=True)
-     
+        create_db( f"{self.path}/db/data.db" )
 
     def __enter__(self):
         
@@ -69,11 +69,13 @@ class Session:
         ctx = get_context(clear=True)
         ctx.path = path
         ctx.virtualenv = virtualenv
-       
+
     
     def run(self, dry_run : bool=False):
         ctx = get_context()
+        
+        # Save tasks to disk
         dump( ctx, f"{self.path}/tasks.json" )
-        for task in ctx.tasks.values():
-            if len(task.prev)==0:
-                task( dry_run=dry_run )
+        
+        # Execute tasks with no dependencies as entry points
+        [task(dry_run=dry_run) for task in ctx.tasks.values() if len(task.prev)==0]

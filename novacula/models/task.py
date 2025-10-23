@@ -12,6 +12,7 @@ from typing import Union, Dict, List
 from novacula.models import get_context, Context
 from novacula.models.image import Image 
 from novacula.models.dataset import Dataset
+from novacula.db import get_db_service, models
 from loguru import logger
 
 
@@ -179,6 +180,7 @@ class Task:
             self.outputs_data = outputs
             self.secondary_data = secondary_data
             self.path = f"{ctx.path}/tasks/{self.name}"
+            self.save_db()
             
     @property
     def next(self) -> List['Task']:
@@ -255,6 +257,7 @@ class Task:
                     "secondary_data": {},
                     "image"         : self.image.path,
                     "job_id"        : job_id,
+                    "task_id"       : self.task_id,
                     "command"       : self.command,
                     "binds"         : self.binds,
                     "job_name"      : "",
@@ -339,6 +342,23 @@ class Task:
             secondary_data = { key : value for key, value in data['secondary_data'].items() },
             binds = data['binds'],
         )
+        
+    def save_db(self):
+        db_service = get_db_service()
+        with db_service() as session:
+            task_db = models.Task()
+            task_db.task_id = self.task_id
+            task_db.name = self.name
+            for job_id, filepath in enumerate(self.input_data):
+                job_db = models.Job()
+                job_db.job_id = job_id
+                job_db.task_id = self.task_id
+                task_db += job_db 
+            session.add( task_db )
+            session.commit()
+
+            
+
         
 #
 # read and write functions

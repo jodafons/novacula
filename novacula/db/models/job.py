@@ -26,27 +26,22 @@ class JobStatus(enum.Enum):
     RUNNING     = "running"
     COMPLETED   = "completed"
     FAILED      = "failed"
+    KILL        = "kill"
+    KILLED      = "killed"
     
 
 class Job (Base):
 
     __tablename__       = 'job'
-    id                  = Column(Integer, autoincrement=False, primary_key=True)
-    job_id              = Column(String(64))
-    task_id             = Column(String(64))
-    command             = Column(String , default="")
-    workarea            = Column(String)
-    timer               = Column(DateTime)
+    id                  = Column(Integer, primary_key=True)
+    job_id              = Column(Integer)
+    task_id             = Column(Integer)
     retry               = Column(Integer , default=0)
     task                = relationship("Task", back_populates="jobs")
     taskid              = Column(Integer, ForeignKey('task.id'))
-    partition           = Column(String , default="")
     status              = Column(Enum(JobStatus), default=JobStatus.ASSIGNED )
-    partition           = Column(String)
-    memory_mb           = Column(Float  , default=0 )
-    cpu_cores           = Column(Float  , default=0 )
-    start_time          = Column(DateTime)
-    updated_time        = Column(DateTime)
+    start_time          = Column(DateTime, default=datetime.now())
+    updated_time        = Column(DateTime, default=datetime.now())
 
     
     def ping(self):
@@ -59,15 +54,15 @@ class Job (Base):
 
 class DBJob:
 
-    def __init__(self, job_id : str, session):
+    def __init__(self, task_id : int, job_id : int, session):
         self.job_id = job_id
+        self.task_id = task_id
         self.__session = session
-
 
     def update_status(self, status : JobStatus):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
             setattr(job, "status", status)
             job.ping()
             session.commit()
@@ -80,7 +75,7 @@ class DBJob:
             fields = [Job.status]
             job = (
                 session.query(Job)
-                .filter_by(job_id=self.job_id)
+                .filter_by(task_id=self.task_id, job_id=self.job_id).one()
                 .options(load_only(*fields))
                 .one()
             )
@@ -88,20 +83,19 @@ class DBJob:
         finally:
             session.close()
 
-
     def ping(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
             job.ping()
             session.commit()
         finally:
             session.close()
             
-    def start(self):
+    def start_clock(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
             job.start_time = datetime.now()
             session.commit()
         finally:

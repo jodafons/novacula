@@ -13,25 +13,34 @@ from loguru  import logger
 
 
 from novacula import setup_logs, Popen, symlink, get_context, load
-
+from novacula.db import get_db_service
+from novacula.db import JobStatus as status
 
 
          
 def job( args ):
 
+  
     workarea = args.output
 
     with open ( args.input , 'r') as f:
-        job = json.load(f)
-        job_name = job['job_name']
-        command  = job['command']
-        job_id   = job['job_id']
-        image    = job['image']
-        input_data = job['input_data']
-        outputs_data  = job['outputs']
-        task_binds = job['binds']
-        task_name = job['task_name']
-        task_envs = {}
+        job          = json.load(f)
+        job_name     = job['job_name']
+        command      = job['command']
+        job_id       = job['job_id']
+        task_id      = job['task_id']
+        image        = job['image']
+        input_data   = job['input_data']
+        outputs_data = job['outputs']
+        task_binds   = job['binds']
+        task_name    = job['task_name']
+        task_envs    = {}
+
+    db_service  = get_db_service(args.db_file)
+    job_service = db_service.job( task_id, job_id )
+    job_service.start_clock()
+    job_service.update_status(status.ASSIGNED)
+
 
     setup_logs(job_name, args.message_level, save=False, color="red")
 
@@ -57,11 +66,11 @@ def job( args ):
     #    linkpath = symlink( f"{basepath}" , f"{workarea}/{name}")
     #    command = command.replace(f"%{key}", linkpath)    
 
-    if input_data!="":
-        filename = input_data.split('/')[-1]
-        dataset_name = input_data.split('/')[-2]
-        linkpath = symlink( input_data, f"{workarea}/{dataset_name}.{filename}")
-        command = command.replace(f"%IN", linkpath)
+    
+    filename = input_data.split('/')[-1]
+    dataset_name = input_data.split('/')[-2]
+    linkpath = symlink( input_data, f"{workarea}/{dataset_name}.{filename}")
+    command = command.replace(f"%IN", linkpath)
       
     outputs = []
       
@@ -76,6 +85,7 @@ def job( args ):
         sourcepath = f"{workarea}/{filename}"
         outputs.append( (sourcepath, targetpath) )
 
+
     print(outputs)
     print(command)
         
@@ -84,6 +94,7 @@ def job( args ):
         f.write(f"cd {workarea}\n")
         f.write(command)
             
+    ok=True
     try:
         binds   = f''
         for key,value in task_binds.items():
@@ -109,30 +120,34 @@ def job( args ):
         print(command)
         proc = Popen(command, envs = envs)
         proc.run_async()
+        job_service.update_status(status.RUNNING)
         proc.join()
         #ram = MemoryMonitor()
 
-        #while proc.is_alive():
-        #    sleep(5)
-        #    #job_service.ping()
-        #    #db_status = job_service.fetch_status()
-        #    #ok = ram(proc , job_id=args.job_id, log=monitor) 
-        #    if db_status == JobStatus.KILL or not ok:
-        #        proc.kill()
-        #        proc.join()
-        #        if not ok: # stop because some memory condition
-        #            job_service.update_status(JobStatus.FAILED)
-        #        else: # stop because the user tell it
-        #            job_service.update_status(JobStatus.KILLED)
-        #        stop=True
+        while proc.is_alive():
+            sleep(10)
+            job_service.ping()
+            db_status = job_service.fetch_status()
+            if db_status == status.KILL:
+                proc.kill()
+                proc.join()                
+                job_service.update_status(status.KILLED)
+                ok=False
     except:
         traceback.print_exc()
-        #sys.exit(1)
+        logger.error("error during the job execution.")
+        job_service.update_status(status.FAILED)
+        sys.exit(0)
 
+    if not ok:
+        logger.error("job execution failed.")
+        sys.exit(0)
+    
     
     if proc.status()!="completed":
         logger.error(f"something happing during the job execution. exiting with status {proc.status()}")
-        sys.exit(1)
+        job_service.update_status(status.FAILED)
+        sys.exit(0)
     
     
     logger.info("uploading output files into the storage...")
@@ -143,8 +158,11 @@ def job( args ):
             symlink( targetpath, filename )
         else:
             logger.error(f"output file {filename} not found in workarea {workarea}.")
-            sys.exit(1)
-
+            job_service.update_status(status.FAILED)
+            sys.exit(0)
+            
+    job_service.ping()
+    job_service.update_status(status.COMPLETED)
     sys.exit(0)
 
 
@@ -164,6 +182,8 @@ def run_job():
                         help = "The job output")
     parser.add_argument('-j', '--job-id', action='store', dest='job_id', required=False,
                         help="The job ID")
+    parser.add_argument('-d','--db-file', action='store', dest='db_file', required = True,
+                        help = "The database file")
     parser.add_argument('-m','--message-level', action='store', dest='message_level', required = False, default='INFO',
                         help = "The job message level (DEBUG, INFO, WARNING, ERROR)")
 

@@ -1,6 +1,6 @@
 __all__ = [
     "get_db_service", 
-    "recreate_db",
+    "create_db",
 ]
 
 
@@ -20,19 +20,30 @@ __db_service = None
 # DB services
 #
 
+WAL_ENABLED_CONNECT_ARGS = {
+    "uri": True,  # Enables connection string to be treated as a URI
+    "pragmas": {
+        "journal_mode": "WAL", # Set the journaling mode
+        "foreign_keys": "ON"   # Good practice to always enable FKs in SQLite
+    }
+}
+
+
 class DBService:
 
-    def __init__(self, filename : str):
-        self.filename = filename
-        path = f'duckdb:///{filename}'
-        self.__engine    = create_engine(path)
+    def __init__(self, db_file : str):
+        self.db_file    = db_file
+        DATABASE_URL = f"sqlite:///{db_file}"
+        self.__engine    = create_engine(DATABASE_URL,
+                                         #connect_args=WAL_ENABLED_CONNECT_ARGS,
+                                         echo=False)
         self.__session   = sessionmaker(bind=self.__engine)
 
-    def task(self, task_id : str) -> DBTask:
+    def task(self, task_id : int) -> DBTask:
         return DBTask(task_id, self.__session)
 
-    def job(self, job_id : str) -> DBJob:
-        return DBJob(job_id, self.__session)
+    def job(self, task_id : int, job_id : int) -> DBJob:
+        return DBJob(task_id, job_id, self.__session)
 
     def __call__(self):
         return self.__session()
@@ -67,7 +78,7 @@ def get_db_service( filename: str = "local.db" ) -> DBService:
         __db_service = DBService(filename)
     return __db_service
 
-def recreate_db( filename: str = "local.db" ):
+def create_db( filename: str = "local.db" ):
     db_service = get_db_service(filename)
     Base.metadata.drop_all(db_service.engine())
     Base.metadata.create_all(db_service.engine())
