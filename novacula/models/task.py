@@ -118,22 +118,32 @@ class Task:
             
             self.name = name
             self.command = command
+
+            if '%IN' not in command:
+                raise ValueError("command must contain the placeholder %IN for input data.")
+            for key in outputs.keys():
+                if f"%{key}" not in command:
+                    raise ValueError(f"command must contain the placeholder %{key} for output data.")
+            for key in secondary_data.keys():
+                if f"%{key}" not in command:
+                    raise ValueError(f"command must contain the placeholder %{key} for secondary data.")
+
             ctx = get_context()
 
             if type(input_data) == str:
                 if input_data not in ctx.datasets:
-                    RuntimeError(f"input dataset {input_data} not found in the group of tasks.")
+                    Exception(f"input dataset {input_data} not found in the group of tasks.")
                 input_data = ctx.datasets[ input_data ]
             
             if type(image) == str:
                 if image not in ctx.images:
-                    RuntimeError(f"image {image} not found in the group of tasks.")
+                    Exception(f"image {image} not found in the group of tasks.")
                 image = ctx.images[ image ]
             
             self.image = image
 
             if self.name in ctx.tasks:
-                raise RuntimeError(f"a task with name {name} already exists inside of this group of tasks.")
+                raise Exception(f"a task with name {name} already exists inside of this group of tasks.")
             
             self.task_id = len( ctx.tasks )
             ctx.tasks[ self.name ] = self   
@@ -153,7 +163,7 @@ class Task:
             for key in secondary_data.keys():
                 if type(secondary_data[key]) == str:
                     if secondary_data[key] not in ctx.datasets:
-                        RuntimeError(f"secondary dataset {secondary[key]} not found in the group of tasks.")
+                        Exception(f"secondary dataset {secondary[key]} not found in the group of tasks.")
                     else:
                         secondary_data[ key ] = ctx.datasets[ secondary_data[key] ]
 

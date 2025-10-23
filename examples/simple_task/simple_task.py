@@ -2,7 +2,7 @@
 
 import os, json
 from pprint import pprint
-from novacula import LocalProvider, Task, Dataset, Image
+from novacula import Flow, Task, Dataset, Image
 
 
 basepath = os.getcwd()
@@ -20,14 +20,10 @@ for i in range(2):
         d={'a':i*10,'b':i*2}
         json.dump(d,f)
 
-with LocalProvider(name="local_provider", path=f"{basepath}/local_tasks") as session:
+with Flow(name="local_provider", path=f"{basepath}/local_tasks") as session:
 
 
     input_dataset_1  = Dataset(name="input_data_1", path=f"{basepath}/input_data_1")
-    input_dataset_2  = Dataset(name="input_data_2", path=f"{basepath}/input_data_2")
-
-
-    #secondary_data   = Dataset(name="secondary_data", path=f"{basepath}/secondary_data")
     image            = Image(name="python", path=f"{basepath}/python3.10.sif")
 
     command = f"python {basepath}/app.py --job %IN --output %OUT"
@@ -53,27 +49,10 @@ with LocalProvider(name="local_provider", path=f"{basepath}/local_tasks") as ses
     task_3 = Task(name="example_task_3",
                   image=image,
                   command=command,
-                  input_data=input_dataset_2,
-                  outputs= {'OUT':'output.json'},
-                  partition='gpu',
-                  binds=binds)
-    task_4 = Task(name="example_task_4",
-                  image=image,
-                  command=command,
-                  input_data=task_2.output('OUT'),
-                  outputs= {'OUT':'output.json'},
-                  partition='gpu',
-                  binds=binds,
-                  secondary_data={'DATA_2': task_3.output('OUT')}
-                  )
-    task_5 = Task(name="example_task_5",
-                  image=image,
-                  command=command,
                   input_data=task_2.output('OUT'),
                   outputs= {'OUT':'output.json'},
                   partition='gpu',
                   binds=binds)
-
-    #task_1 >> task_2 >> task_3
+   
     session.run()
     

@@ -1,5 +1,5 @@
 __all__ = [
-    "LocalProvider",
+    "Flow",
     "Session",
 ]
 
@@ -13,16 +13,38 @@ from novacula.models import Dataset, Image, Task
 
 
 
-class LocalProvider:
+class Flow:
 
     def __init__(self, 
-                 name: str = "local",
-                 path : str = f"{os.getcwd()}/tasks",
+                 name       : str = "local",
+                 path       : str = f"{os.getcwd()}/tasks",
                  virtualenv : str=os.environ.get("VIRTUAL_ENV", ""),
-                ):
-        self.name = name
-        self.path = path
-        self.virtualenv = virtualenv
+        ):
+            """
+            Initializes a new instance of the class.
+
+            Parameters:
+            ----------
+            name : str, optional
+                The name of the provider. Defaults to "local".
+            path : str, optional
+                The file path where tasks are located. Defaults to the current working directory followed by '/tasks'.
+            virtualenv : str, optional
+                The path to the virtual environment. Defaults to the value of the environment variable 'VIRTUAL_ENV'.
+
+            Attributes:
+            ----------
+            name : str
+                The name of the provider.
+            path : str
+                The file path where tasks are located.
+            virtualenv : str
+                The path to the virtual environment.
+            """
+            
+            self.name = name
+            self.path = path
+            self.virtualenv = virtualenv
         
     def mkdir(self):
         os.makedirs(self.path + "/tasks", exist_ok=True)
