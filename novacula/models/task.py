@@ -13,6 +13,7 @@ from novacula.models import get_context, Context
 from novacula.models.image import Image 
 from novacula.models.dataset import Dataset
 from novacula.db import get_db_service, models
+from novacula import random_id
 from loguru import logger
 
 
@@ -91,14 +92,14 @@ class Script:
 class Task:
     
     def __init__(self,
-                     name           : str,
-                     image          : Union[str,Image],
-                     command        : str,
-                     input_data     : Union[str, Dataset],
-                     outputs        : Dict[str,str],
-                     partition      : str,
-                     secondary_data : Dict[str, Union[str, Dataset]] = {},
-                     binds          : Dict[str,str] = {},
+                 name           : str,
+                 image          : Union[str,Image],
+                 command        : str,
+                 input_data     : Union[str, Dataset],
+                 outputs        : Dict[str,str],
+                 partition      : str,
+                 secondary_data : Dict[str, Union[str, Dataset]] = {},
+                 binds          : Dict[str,str] = {},
         ):
             """
             Initializes a new task with the given parameters.
@@ -146,7 +147,7 @@ class Task:
             if self.name in ctx.tasks:
                 raise Exception(f"a task with name {name} already exists inside of this group of tasks.")
             
-            self.task_id = len( ctx.tasks )
+            self.task_id = len(ctx.tasks)
             ctx.tasks[ self.name ] = self   
             self.input_data = input_data            
             self.partition = partition
@@ -180,8 +181,7 @@ class Task:
             self.outputs_data = outputs
             self.secondary_data = secondary_data
             self.path = f"{ctx.path}/tasks/{self.name}"
-            self.save_db()
-            
+              
     @property
     def next(self) -> List['Task']:
         return self._next
@@ -220,9 +220,10 @@ class Task:
                 basepath (str): The base path where the task directory will be created.
             """
             
-            os.makedirs(self.path + "/works", exist_ok=True)
-            os.makedirs(self.path + "/jobs", exist_ok=True)
-            os.makedirs(self.path + "/scripts", exist_ok=True)
+            os.makedirs(self.path + "/works"    , exist_ok=True)
+            os.makedirs(self.path + "/jobs"     , exist_ok=True)
+            os.makedirs(self.path + "/scripts"  , exist_ok=True)
+            self._create_db()
 
 
     def output(self, key: str) -> str:
@@ -245,29 +246,11 @@ class Task:
     def __call__(self, dry_run : bool=False) -> int:
         
         ctx = get_context()
-        self.mkdir()
-
-        nfiles = len(self.input_data)
-
-        for job_id, filepath in enumerate(self.input_data):
-            with open( f"{self.path}/jobs/job_{job_id}.json", 'w') as f:
-                d = {
-                    "input_data": filepath,
-                    "outputs" : { key : {"name":value.name.replace(f"{self.name}.",""), "target":value.path} for key, value in self.outputs_data.items() },
-                    "secondary_data": {},
-                    "image"         : self.image.path,
-                    "job_id"        : job_id,
-                    "task_id"       : self.task_id,
-                    "command"       : self.command,
-                    "binds"         : self.binds,
-                    "job_name"      : "",
-                    "task_name"     : self.name,
-                }
-                json.dump(d, f, indent=2)
-
+        db_service = get_db_service()
+                
         script = Script( f"{self.path}/scripts/run_task_{self.task_id}.sh", 
                         args = {
-                            "array"     : f"0-{nfiles-1}",
+                            "array"     : ",".join( [str(job_id) for job_id in self._get_array_of_jobs_with_status( models.JobStatus.ASSIGNED ) ]),
                             "output"    : f"{self.path}/works/job_%a/output.out",
                             "error"     : f"{self.path}/works/job_%a/output.err",
                             "partition" : self.partition,
@@ -343,22 +326,79 @@ class Task:
             binds = data['binds'],
         )
         
-    def save_db(self):
+    def _create_db(self):
+        
         db_service = get_db_service()
+        if not db_service.task(self.name).check_existence():
+            with db_service() as session:
+                db_task = models.Task()
+                #db_task.task_id = self.task_id
+                db_task.name = self.name
+                session.add( db_task )
+                session.commit()
+
+
+    def _create_db(self):
+     
+        db_service = get_db_service()
+ 
         with db_service() as session:
-            task_db = models.Task()
-            task_db.task_id = self.task_id
-            task_db.name = self.name
-            for job_id, filepath in enumerate(self.input_data):
-                job_db = models.Job()
-                job_db.job_id = job_id
-                job_db.task_id = self.task_id
-                task_db += job_db 
-            session.add( task_db )
-            session.commit()
+            try:
+                if session.query(models.Task).filter_by(name=self.name).count() == 0:
+                    task_db = models.Task()
+                    task_db.name = self.name
+                else:
+                    task_db = session.query(models.Task).filter_by(name=self.name).one()
+                    
+                job_id = len(task_db.jobs)
+                    
+                for filepath in self.input_data:
+                    filename = filepath.split('/')[-1]
+                    if session.query(models.Job).filter_by(task_name=self.name, filename=filename).count() == 0:
+                                            
+                        path = f"{self.path}/jobs/job_{job_id}.json"
+                        with open( path, 'w') as f:
+                            d = {
+                                "input_data"    : filepath,
+                                "outputs"       : { key : {"name":value.name.replace(f"{self.name}.",""), "target":value.path} for key, value in self.outputs_data.items() },
+                                "secondary_data": {},
+                                "image"         : self.image.path,
+                                "job_id"        : job_id,
+                                "task_id"       : self.task_id,
+                                "command"       : self.command,
+                                "binds"         : self.binds,
+                                "job_name"      : "",
+                                "task_name"     : self.name,
+                            }
+                            json.dump(d, f, indent=2)
+
+                        job_db          = models.Job()
+                        job_db.job_id   = job_id 
+                        job_db.filename = filename
+                        task_db        += job_db 
+                        job_id         += 1
+                        
+                session.add(task_db)
+                logger.info(f"creating task with name {self.name}")
+                session.commit()
+            finally:
+                session.close()
 
             
-
+    def _get_array_of_jobs_with_status(self, status : models.JobStatus = models.JobStatus.COMPLETED ) -> List[int]:
+        
+        db_service = get_db_service()
+        jobs = []
+        with db_service() as session:
+            try:
+                print(self.name)
+                task_db = session.query(models.Task).filter_by(name=self.name).first()
+                for job in task_db.jobs:
+                    if job.status == status:
+                        jobs.append( job.job_id )
+            finally:
+                session.close()
+        return jobs
         
 #
 # read and write functions

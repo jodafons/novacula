@@ -1,4 +1,6 @@
 __all__ = [
+    "random_id",
+    "get_hash",
     "setup_logs",
     "get_argparser_formatter",
     "random_id", 
@@ -11,21 +13,32 @@ __all__ = [
 import os
 import errno
 import sys, argparse
+import uuid
+import hashlib 
 
 from loguru         import logger
 from rich_argparse  import RichHelpFormatter
 
 
-def get_argparser_formatter( standard : bool=False):
-    if not standard:
-        RichHelpFormatter.styles["argparse.args"]     = "green"
-        RichHelpFormatter.styles["argparse.prog"]     = "bold grey50"
-        RichHelpFormatter.styles["argparse.groups"]   = "bold green"
-        RichHelpFormatter.styles["argparse.help"]     = "grey50"
-        RichHelpFormatter.styles["argparse.metavar"]  = "blue"
-        return RichHelpFormatter
-    else:
-        return argparse.HelpFormatter
+
+def get_hash( path : str) -> str:
+    hasher = hashlib.sha256()
+    with open(path, 'rb') as f:
+        while chunk := f.read(8192):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+def random_id():
+    new_uuid = uuid.uuid4()
+    return str(new_uuid)[-12:]
+
+def get_argparser_formatter():
+    RichHelpFormatter.styles["argparse.args"]     = "green"
+    RichHelpFormatter.styles["argparse.prog"]     = "bold grey50"
+    RichHelpFormatter.styles["argparse.groups"]   = "bold green"
+    RichHelpFormatter.styles["argparse.help"]     = "grey50"
+    RichHelpFormatter.styles["argparse.metavar"]  = "blue"
+    return RichHelpFormatter
 
 def setup_logs( name , level, save : bool=False, color="cyan", prefix=""):
     """Setup and configure the logger"""

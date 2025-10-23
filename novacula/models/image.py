@@ -35,7 +35,7 @@ class Image:
                 raise RuntimeError(f"an image with name {name} already exists inside of this group of tasks.")
             ctx.images[name] = self
 
-    def mkdir(self, basepath: str):
+    def mkdir(self):
         """
         Create a directory for the image and create a symbolic link to the image file.
 
@@ -50,8 +50,8 @@ class Image:
         Returns:
         None
         """
-        
-        dirpath = f"{basepath}/{self.name}"
+        ctx = get_context()
+        dirpath = f"{ctx.path}/images/{self.name}"
         os.makedirs(dirpath, exist_ok=True)
         image_name = self.path.split('/')[-1]
         linkpath = f"{dirpath}/{image_name}"

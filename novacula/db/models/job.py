@@ -2,6 +2,7 @@ __all__ = [
     "Job" , 
     "DBJob", 
     "JobStatus",
+    "job_status"
     ]
 
 import enum 
@@ -29,19 +30,21 @@ class JobStatus(enum.Enum):
     KILL        = "kill"
     KILLED      = "killed"
     
+job_status = [JobStatus.ASSIGNED, JobStatus.PENDING, JobStatus.RUNNING, JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.KILL, JobStatus.KILLED]
 
 class Job (Base):
 
     __tablename__       = 'job'
     id                  = Column(Integer, primary_key=True)
     job_id              = Column(Integer)
-    task_id             = Column(Integer)
-    retry               = Column(Integer , default=0)
+    retry               = Column(Integer , default=-1)
     task                = relationship("Task", back_populates="jobs")
     taskid              = Column(Integer, ForeignKey('task.id'))
     status              = Column(Enum(JobStatus), default=JobStatus.ASSIGNED )
     start_time          = Column(DateTime, default=datetime.now())
     updated_time        = Column(DateTime, default=datetime.now())
+    task_name           = Column(String)
+    filename            = Column(String)
 
     
     def ping(self):
@@ -92,11 +95,12 @@ class DBJob:
         finally:
             session.close()
             
-    def start_clock(self):
+    def start(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_id=self.task_id, job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
             job.start_time = datetime.now()
+            job.retry+=1
             session.commit()
         finally:
             session.close()

@@ -50,7 +50,6 @@ class Dataset:
             if name in ctx.datasets:
                 raise RuntimeError(f"a dataset with name {name} already exists inside of this group of tasks.")
             ctx.datasets[name] = self
-            self.mkdir()
             
     def to_raw(self) -> Dict:
             """

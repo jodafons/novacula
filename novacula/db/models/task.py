@@ -54,8 +54,8 @@ class Task (Base):
     
 class DBTask:
 
-    def __init__(self, task_id : str, session):
-      self.task_id = task_id
+    def __init__(self, name : str, session):
+      self.name = name
       self.__session = session
 
     def fetch_status(self) -> TaskStatus:
@@ -64,7 +64,7 @@ class DBTask:
             fields = [Task.status]
             task = (
                 session.query(Task)
-                .filter_by(task_id=self.task_id)
+                .filter_by(name=self.name)
                 .options(load_only(*fields))
                 .one()
             )
@@ -75,23 +75,20 @@ class DBTask:
     def update_status(self, status : TaskStatus):
         session = self.__session()
         try:
-            task = session.query(Task).filter_by(task_id=self.task_id).one()
+            task = session.query(Task).filter_by(name=self.name).one()
             setattr(task, "status", status)
             task.ping()
             session.commit()
         finally:
             session.close()
      
-    def fetch_name(self):
+    def check_existence(self) -> bool:
         session = self.__session()
         try:
-            fields = [Task.name]
-            task = (
-                session.query(Task)
-                .filter_by(task_id=self.task_id)
-                .options(load_only(*fields))
-                .one()
-            )
-            return task.name
+            count = session.query(Task).filter_by(name=self.name).count()
+            return count > 0
         finally:
             session.close()
+        
+        
+     

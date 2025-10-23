@@ -6,12 +6,13 @@ __all__ = [
 
 import os
 
+from typing         import Dict
 from sqlalchemy     import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime       import datetime
 from loguru         import logger
 from .models        import DBJob, DBTask, Base
-from .models        import Job, Task
+from .models        import Job, Task, job_status
 
 __db_service = None
 
@@ -70,6 +71,17 @@ class DBService:
            return task.task_id
         finally:
             session.close() 
+            
+    def fetch_table_from_task( self, name : str) -> Dict[str,int]:
+        session = self.__session()
+        try:
+           jobs = session.query(Task).filter_by(name=name).one().jobs
+           table = {status.value:0 for status in job_status}
+           for job_db in jobs:
+               table[job_db.status.value] += 1           
+           return table
+        finally:
+            session.close()
 
 
 def get_db_service( filename: str = "local.db" ) -> DBService:
