@@ -43,8 +43,8 @@ class DBService:
     def task(self, task_id : int) -> DBTask:
         return DBTask(task_id, self.__session)
 
-    def job(self, task_id : int, job_id : int) -> DBJob:
-        return DBJob(task_id, job_id, self.__session)
+    def job(self, task_name : str, job_id : int) -> DBJob:
+        return DBJob(task_name, job_id, self.__session)
 
     def __call__(self):
         return self.__session()

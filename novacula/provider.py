@@ -86,11 +86,11 @@ class Session:
             for task in ctx.tasks.values():
                 logger.info(f"Task: {task.name}, Prev: {task.prev}, Next: {task.next}")
                 if len(task.prev) == 0:
-                    command = f"novacula run create --task-file {self.path}/tasks.json --index {task.task_id} --db-file {self.path}/db/data.db"
-              
-              
-
-            
+                    command = f"ntask init"
+                    command+= f" --task-file {self.path}/tasks.json"
+                    command+= f" --index {task.task_id}"
+                    command+= f" --db-file {self.path}/db/data.db"
+                    os.system(command)
         else:
             # Create a temporary file
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:

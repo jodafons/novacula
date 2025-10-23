@@ -1,14 +1,17 @@
 __all__ = []
+
+import sys
 import argparse
 
-from novacula.models.task import load
-from novacula import get_context
-from novacula.db import get_db_service, models 
-from novacula.db import JobStatus as job_status
-from novacula.db import TaskStatus as task_status
+from novacula.models.task   import load
+from novacula               import get_context, Script
+from novacula               import get_argparser_formatter
+from novacula.db            import get_db_service, models 
+from novacula.db            import JobStatus as job_status
+from novacula.db            import TaskStatus as task_status
 
 
-def create(args):
+def init(args):
     ctx = get_context( clear=True )
     db_service = get_db_service( args.db_file )
     
@@ -29,33 +32,13 @@ def create(args):
             session.close()
 
 
-    job_id = task.run()
-    script = Script()
+    job_id = task.submit()
     
-    script = Script( f"{task.path}/scripts/run_task_{task.task_id}.sh", 
+    # create the closing script
+    script = Script( f"{task.path}/scripts/close_task_{task.task_id}.sh",
                     args = {
-                        #"array"     : ",".join( [str(job_id) for job_id in task._get_array_of_jobs_with_status( models.JobStatus.ASSIGNED ) ]),
-                        "output"    : f"{task.path}/works/job_%a/output.out",
-                        "error"     : f"{task.path}/works/job_%a/output.err",
-                        "partition" : task.partition,
-                        "job-name"  : f"task-{task.task_id}",
-                    }
-                    )
-    script += f"source {ctx.virtualenv}/bin/activate"
-    script += f"njob -i {task.path}/jobs/job_$SLURM_ARRAY_TASK_ID.json --message-level INFO -o {task.path}/works/job_$SLURM_ARRAY_TASK_ID -j $SLURM_ARRAY_JOB_ID"
-    script.dump()
-
-    try:
-        job_id = script.submit()
-    except Exception as e:
-        raise Exception(f"Failed to submit job for task {task.name}: {str(e)}")
-    
-    
-        
-    script = Script( f"{self.path}/scripts/close_task_{task.task_id}.sh",
-                    args = {
-                        "output"    : f"{task.path}/scripts/run_task_{task.task_id}.out",
-                        "error"     : f"{task.path}/scripts/run_task_{task.task_id}.err",
+                        "output"    : f"{task.path}/scripts/close_task_{task.task_id}.out",
+                        "error"     : f"{task.path}/scripts/close_task_{task.task_id}.err",
                         "job-name"  : f"{task.task_id}-{task.task_id}",
                         "dependency": f"afterok:{job_id}",
                     }
@@ -116,16 +99,15 @@ def close(args):
         # need to start the other tasks that depend on this one
         for task in task.next:
             print(f"Starting dependent task {task.name}.")
-            
-            script = Script( f"{task.path}/scripts/create_task_{task.task_id}.sh",
+            script = Script( f"{task.path}/scripts/init_task_{task.task_id}.sh",
                     args = {
-                        "output"    : f"{task.path}/scripts/create_task_{task.task_id}.out",
-                        "error"     : f"{task.path}/scripts/create_task_{task.task_id}.err",
-                        "job-name"  : f"create-{task.task_id}",
+                        "output"    : f"{task.path}/scripts/init_task_{task.task_id}.out",
+                        "error"     : f"{task.path}/scripts/init_task_{task.task_id}.err",
+                        "job-name"  : f"init-{task.task_id}",
                     }
             )
             script += f"source {ctx.virtualenv}/bin/activate"
-            script += f"ntask create --task-file {ctx.path}/tasks.json --index {task.task_id} --db-file {ctx.path}/db/data.db"
+            script += f"ntask init --task-file {ctx.path}/tasks.json --index {task.task_id} --db-file {ctx.path}/db/data.db"
             script.dump()
             script.submit()
     
@@ -139,7 +121,7 @@ def args_parser():
                         help="The task file input")
     parser.add_argument('--db-file', action='store', dest='db_file', required=True,
                         help="The database file input")
-    return [parser]
+    return parser
 
 
 
@@ -148,45 +130,26 @@ def args_parser():
 def build_argparser():
 
     formatter_class = get_argparser_formatter()
-
     parser    = argparse.ArgumentParser(formatter_class=formatter_class)
     mode = parser.add_subparsers(dest='mode')
-
-
-    run_parent = argparse.ArgumentParser(formatter_class=formatter_class, add_help=False, )
-    option = run_parent.add_subparsers(dest='option')
-    option.add_parser("job"   , parents = job_parser()   ,help='',formatter_class=formatter_class)
-    option.add_parser("create", parents = task_parser()  ,help='',formatter_class=formatter_class)
-    option.add_parser("close" , parents = task_parser()  ,help='',formatter_class=formatter_class)
-    mode.add_parser( "run", parents=[run_parent], help="",formatter_class=formatter_class)
-    
-
+    mode.add_parser( "init", parents=[args_parser()], help="",formatter_class=formatter_class)
+    mode.add_parser( "close", parents=[args_parser()], help="",formatter_class=formatter_class)
     return parser
 
 def run_parser(args):
-    if args.mode == "run":
-        if args.option == "job":
-            from .job import run
-            run(args)
-        elif args.option == "create":
-            from .task import create
-            create(args)
-        elif args.option == "close":
-            from .task import close
-            close(args)
+    if args.mode == "init":
+        init(args)
+    elif args.mode == "close":
+        close(args)
        
 
 def run():
-
     parser = build_argparser()
     if len(sys.argv)==1:
         print(parser.print_help())
         sys.exit(1)
-
     args = parser.parse_args()
     run_parser(args)
-
-
 
 if __name__ == "__main__":
   run()

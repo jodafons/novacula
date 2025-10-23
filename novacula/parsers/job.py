@@ -19,7 +19,7 @@ from novacula.db    import JobStatus as status
 
 
          
-def run( args ):
+def job( args ):
 
   
     workarea = args.output
@@ -37,9 +37,12 @@ def run( args ):
         task_name    = job['task_name']
         task_envs    = {}
 
+    print(args.db_file)
+    print(job_id)
+    print(task_name)
     db_service  = get_db_service(args.db_file)
     job_service = db_service.job( task_name, job_id )
-    job_service.start_clock()
+    job_service.start()
     job_service.update_status(status.PENDING)
 
 
@@ -105,7 +108,7 @@ def run( args ):
 
         envs = {}
         envs["JOB_ID"]               = f"{job_id}"
-        envs["TASK_ID"]              = f"{args.job_id}"
+        #envs["TASK_ID"]              = f"{args.job_id}"
         envs["JOB_WORKAREA"]         = workarea 
         envs["TF_CPP_MIN_LOG_LEVEL"] = "3"
         envs["CUDA_VISIBLE_ORDER"]   = "PCI_BUS_ID"

@@ -32,8 +32,8 @@ setup(
     ],
     entry_points = {
         'console_scripts' : [
-            'njob = novacula.job:run_job',
-            'ntask = novacula.job:run_task',
+            'njob  = novacula.parsers.job:run',
+            'ntask = novacula.parsers.task:run',
         ]
     }
 )

@@ -65,7 +65,7 @@ class DBJob:
     def update_status(self, status : JobStatus):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_name=self.task_name).filter_by(job_id=self.job_id).one()
             setattr(job, "status", status)
             job.ping()
             session.commit()
@@ -78,7 +78,8 @@ class DBJob:
             fields = [Job.status]
             job = (
                 session.query(Job)
-                .filter_by(task_name=self.task_name, job_id=self.job_id).one()
+                .filter_by(task_name=self.task_name)
+                .filter_by(job_id=self.job_id)
                 .options(load_only(*fields))
                 .one()
             )
@@ -89,7 +90,7 @@ class DBJob:
     def ping(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
+            job = session.query(Job).filter_by(task_name=self.task_name).filter_by(job_id=self.job_id).one()
             job.ping()
             session.commit()
         finally:
@@ -98,7 +99,8 @@ class DBJob:
     def start(self):
         session = self.__session()
         try:
-            job = session.query(Job).filter_by(task_name=self.task_name, job_id=self.job_id).one()
+            print(self.task_name, self.job_id)
+            job = session.query(Job).filter_by(task_name=self.task_name).filter_by(job_id=self.job_id).one()
             job.start_time = datetime.now()
             job.retry+=1
             session.commit()

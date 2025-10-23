@@ -1,7 +1,8 @@
 __all__ = [
     "Task",
     "load",
-    "dump"
+    "dump",
+    "Script"
 ]
 
 import os, json, subprocess
@@ -386,10 +387,13 @@ class Task:
 
                             job_db          = models.Job()
                             job_db.job_id   = job_id 
+                            job_db.task_name= self.name
                             job_db.filename = filename
+                            job_db.status   = models.JobStatus.ASSIGNED
                             task_db        += job_db 
                             job_id         += 1
                             
+                    print(task_db.jobs)
                     logger.info(f"creating task with name {self.name}")
                     session.commit()
                 finally:
@@ -417,8 +421,11 @@ class Task:
             jobs = []
             with db_service() as session:
                 try:
-                    jobs_db = session.query(models.Job).filter_by(task_name=self.name, status=status).all()
-                    jobs += [job_db.job_id for job_db in jobs_db]
+                    task_db = session.query(models.Task).filter_by(name=self.name).one()
+                    for job_db in task_db.jobs:
+                        if job_db.status == status:
+                            jobs.append(job_db.job_id)
+                    
                 finally:
                     session.close()
             return jobs
