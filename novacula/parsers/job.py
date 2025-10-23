@@ -2,7 +2,6 @@
 
 
 
-import glob
 import json
 import argparse
 import traceback
@@ -13,7 +12,7 @@ from pprint         import pprint
 from time           import sleep
 from loguru         import logger
 from novacula       import get_argparser_formatter
-from novacula       import setup_logs, Popen, symlink, get_context
+from novacula       import setup_logs, Popen, symlink
 from novacula.db    import get_db_service
 from novacula.db    import JobStatus as status
 

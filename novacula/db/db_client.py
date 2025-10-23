@@ -4,15 +4,13 @@ __all__ = [
 ]
 
 
-import os
 
 from typing         import Dict
 from sqlalchemy     import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime       import datetime
-from loguru         import logger
 from .models        import DBJob, DBTask, Base
-from .models        import Job, Task, job_status
+from .models        import Task, job_status
 
 __db_service = None
 

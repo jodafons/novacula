@@ -2,10 +2,9 @@ __all__ = [
     "Image",
 ]
 
-import os, sys
+import os
 
-from typing import List, Union, Dict
-from expand_folders import expand_folders
+from typing import Dict
 from novacula import symlink
 from novacula.models import get_context
 

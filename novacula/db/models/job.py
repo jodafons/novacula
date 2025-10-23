@@ -12,7 +12,6 @@ from sqlalchemy.orm import load_only, relationship
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Enum
 
 from . import Base
-from .task import Task
 
 
 minutes=60 # seconds

@@ -2,7 +2,7 @@ __all__ = [
     "Dataset",
 ]
 
-import os, sys, json
+import os
 
 from typing import List, Dict, Union
 from expand_folders import expand_folders
