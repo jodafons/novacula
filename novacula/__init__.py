@@ -36,13 +36,15 @@ def get_argparser_formatter():
     RichHelpFormatter.styles["argparse.metavar"]  = "blue"
     return RichHelpFormatter
 
-def setup_logs( name , level, save : bool=False, color="cyan", prefix=""):
+def setup_logs( name , level):
     """Setup and configure the logger"""
-
     logger.configure(extra={"name" : name})
     logger.remove()  # Remove any old handler
     #format="<green>{time:DD-MMM-YYYY HH:mm:ss}</green> | <level>{level:^12}</level> | <cyan>{extra[slurms_name]:<30}</cyan> | <blue>{message}</blue>"
-    format=prefix+"<"+color+">{extra[name]:^25}</"+color+"> | <green>{time:DD-MMM-YYYY HH:mm:ss}</green> | <level>{level:^12}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <blue>{message}</blue>"
+    if level=="DEBUG":
+        format="<blue>{time:DD-MMM-YYYY HH:mm:ss}</blue> | <level>{level:^12}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> |{message}"
+    else:
+        format="<blue>{time:DD-MMM-YYYY HH:mm:ss}</blue> | {message}"
     logger.add(
         sys.stdout,
         colorize=True,
@@ -51,14 +53,7 @@ def setup_logs( name , level, save : bool=False, color="cyan", prefix=""):
         level=level,
         format=format,
     )
-    if save:
-        output_file = name.replace(':','_').replace('-','_') + '.log'
-        logger.add(output_file, 
-                   rotation="30 minutes", 
-                   retention=3, 
-                   format=format, 
-                   level=level, 
-                   colorize=False)   
+    
 
 
 def symlink(target, linkpath):

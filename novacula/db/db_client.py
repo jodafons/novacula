@@ -53,33 +53,10 @@ class DBService:
     def engine(self):
         return self.__engine
 
-    def save_task(self, task: Task):
-        session = self.session()
-        task.start_time = datetime.now()
-        try:
-            session.add(task)
-            session.commit()
-        finally:
-            session.close()
 
-    def fetch_task_from_name( self,  name : str) -> str:
-        session = self.__session()
-        try:
-           task = session.query(Task).filter_by(name=name).one()
-           return task.task_id
-        finally:
-            session.close() 
-            
-    def fetch_table_from_task( self, name : str) -> Dict[str,int]:
-        session = self.__session()
-        try:
-           jobs = session.query(Task).filter_by(name=name).one().jobs
-           table = {status.value:0 for status in job_status}
-           for job_db in jobs:
-               table[job_db.status.value] += 1           
-           return table
-        finally:
-            session.close()
+
+
+    
 
 
 def get_db_service( filename: str = "local.db" ) -> DBService:

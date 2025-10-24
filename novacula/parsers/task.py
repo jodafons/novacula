@@ -22,9 +22,11 @@ __all__ = []
 
 import sys
 import argparse
+from loguru import logger
+
 
 from novacula.models.task   import load
-from novacula               import get_context, sbatch
+from novacula               import get_context, sbatch, setup_logs
 from novacula               import get_argparser_formatter
 from novacula.db            import get_db_service, models 
 from novacula.db            import JobStatus as job_status
@@ -34,6 +36,7 @@ from novacula.db            import TaskStatus as task_status
 
 def init(args):
     
+    setup_logs( name = f"TaskInit:{args.index}", level=args.message_level )
     ctx = get_context( clear=True )
     db_service = get_db_service( args.db_file )
     logger.info(f"Initializing task with index {args.index}.")
@@ -76,6 +79,7 @@ def init(args):
 
 def close(args):
     
+    setup_logs( name = f"TaskCloser:{args.index}", level=args.message_level )
     ctx = get_context( clear=True )
     db_service = get_db_service( args.db_file )
 
@@ -152,35 +156,28 @@ def args_parser():
                         help="The task file input")
     parser.add_argument('--db-file', action='store', dest='db_file', required=True,
                         help="The database file input")
+    parser.add_argument('--message-level', action='store', dest='message_level', required=False,
+                        help="The logging message level", default="INFO", choices=["DEBUG","INFO","WARNING","ERROR","CRITICAL"])
     return parser
 
 
-
-
-
-def build_argparser():
-
+def run():
     formatter_class = get_argparser_formatter()
     parser    = argparse.ArgumentParser(formatter_class=formatter_class)
     mode = parser.add_subparsers(dest='mode')
     mode.add_parser( "init", parents=[args_parser()], help="",formatter_class=formatter_class)
     mode.add_parser( "close", parents=[args_parser()], help="",formatter_class=formatter_class)
-    return parser
-
-def run_parser(args):
+    
+    if len(sys.argv)==1:
+        print(parser.print_help())
+        sys.exit(1)
+    args = parser.parse_args()
+    
     if args.mode == "init":
         init(args)
     elif args.mode == "close":
         close(args)
        
-
-def run():
-    parser = build_argparser()
-    if len(sys.argv)==1:
-        print(parser.print_help())
-        sys.exit(1)
-    args = parser.parse_args()
-    run_parser(args)
 
 if __name__ == "__main__":
   run()

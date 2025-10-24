@@ -6,10 +6,11 @@ __all__ = [
 
 import enum 
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 from sqlalchemy import Column, Integer, String, Enum, Float, DateTime, TEXT
 from sqlalchemy.orm import load_only, relationship
 from . import Base
+from .job  import job_status
 
 
 minutes=60 # seconds
@@ -90,4 +91,13 @@ class DBTask:
             session.close()
         
         
-     
+    def fetch_summary(self) -> Dict[str,Dict[str,int]]:
+        session = self.__session()
+        try:
+           task_db = session.query(Task).filter_by(name=self.name).one()
+           table = {status.value:0 for status in job_status}
+           for job_db in task_db.jobs:
+               table[job_db.status.value] += 1           
+           return {'status':task_db.status.value, 'summary':table}
+        finally:
+            session.close()

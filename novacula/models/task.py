@@ -367,7 +367,6 @@ class Task:
                             task_db        += job_db 
                             job_id         += 1
                             
-                    print(task_db.jobs)
                     logger.info(f"creating task with name {self.name}")
                     session.commit()
                 finally:

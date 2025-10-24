@@ -9,7 +9,7 @@ import tempfile
 from pprint import pprint
 from tabulate import tabulate
 from loguru import logger
-from novacula import get_context, dump, get_hash
+from novacula import get_context, dump, get_hash, setup_logs
 from novacula.db import get_db_service, create_db
 
 
@@ -20,6 +20,7 @@ class Flow:
                  name       : str = "local",
                  path       : str = f"{os.getcwd()}/tasks",
                  virtualenv : str=os.environ.get("VIRTUAL_ENV", ""),
+                 level      : str="INFO",
         ):
             """
             Initializes a new instance of the class.
@@ -46,6 +47,7 @@ class Flow:
             self.name = name
             self.path = path
             self.virtualenv = virtualenv
+            setup_logs( name = f"Flow:{self.name}", level=level )
         
     def __enter__(self):
         return Session( self.path , virtualenv = self.virtualenv)
@@ -63,26 +65,30 @@ class Session:
         ctx.virtualenv = virtualenv
     
     def mkdir(self):
+        logger.info(f"Creating flow directory at {self.path}")
         os.makedirs(self.path + "/tasks", exist_ok=True)
         os.makedirs(self.path + "/datasets", exist_ok=True)
         os.makedirs(self.path + "/images", exist_ok=True)
         os.makedirs(self.path + "/db", exist_ok=True)
+        logger.info(f"Creating database at {self.path}/db/data.db")
         create_db( f"{self.path}/db/data.db" )
 
     def run(self, dry_run : bool=False):
         ctx = get_context()
-        
+        logger.info(f"Running flow at {self.path}")
         if not os.path.exists(f"{self.path}/tasks.json"):
+            logger.info("No existing tasks found, initializing new flow.")
             self.mkdir()
             # Save tasks to disk
             dump( ctx, f"{self.path}/tasks.json" )
+            logger.info(f"Tasks saved to {self.path}/tasks.json")
             [image.mkdir() for image in ctx.images.values()]
             [dataset.mkdir() for dataset in ctx.datasets.values()]
             [task.mkdir() for task in ctx.tasks.values()]
             # Execute tasks with no dependencies as entry points
             for task in ctx.tasks.values():
-                logger.info(f"Task: {task.name}, Prev: {task.prev}, Next: {task.next}")
                 if len(task.prev) == 0:
+                    logger.info(f"Preparing task {task.name} for execution.")
                     command = f"ntask init"
                     command+= f" --task-file {self.path}/tasks.json"
                     command+= f" --index {task.task_id}"
@@ -90,6 +96,7 @@ class Session:
                     os.system(command)
         else:
             # Create a temporary file
+            logger.info("Existing tasks found, verifying integrity before execution.")
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file_path = temp_file.name
                 dump(ctx, temp_file_path)
@@ -102,7 +109,7 @@ class Session:
                 raise Exception("Tasks have changed, you can not proceed with execution. Please create a new Flow instance or delete the current flow directory or rename it.")
             else:
                 logger.info("No changes detected in tasks.")
-                
+            logger.info(f"Executing tasks in flow located at {self.path}.")
             self.print_tasks()
             
         
@@ -130,12 +137,12 @@ class Session:
         rows  = []
         for task in ctx.tasks.values():
             row = [task.name]
-            counts = db_service.fetch_table_from_task(task.name)
-            row.extend( [value for value in counts.values()])
-            #row.extend([task.retry, task.status])
+            info = db_service.task(task.name).fetch_summary()
+            row.extend( [value for value in info['summary'].values()])
+            row.extend([info['status']])
             rows.append(row)
         cols = ['taskname']
-        cols.extend([name for name in counts.keys()])
-        #cols.extend(["Retry", "Status"])
+        cols.extend([name for name in info['summary'].keys()])
+        cols.extend(["status"])
         table = tabulate(rows ,headers=cols, tablefmt="psql")
         print(table)

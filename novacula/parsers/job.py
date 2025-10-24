@@ -7,7 +7,7 @@ import argparse
 import traceback
 import shutil
 import os, sys
-
+from loguru         import logger
 from pprint         import pprint
 from time           import sleep
 from loguru         import logger
@@ -20,7 +20,7 @@ from novacula.db    import JobStatus as status
          
 def job( args ):
 
-  
+    setup_logs( name = f"JobRunner", level=args.message_level )
     workarea = args.output
 
     with open ( args.input , 'r') as f:
@@ -36,19 +36,17 @@ def job( args ):
         task_name    = job['task_name']
         task_envs    = {}
 
-    print(args.db_file)
-    print(job_id)
-    print(task_name)
+
     db_service  = get_db_service(args.db_file)
     job_service = db_service.job( task_name, job_id )
     job_service.start()
     job_service.update_status(status.PENDING)
 
 
-    setup_logs(job_name, args.message_level, save=False, color="red")
-
     logger.info("starting...")
     os.makedirs( workarea, exist_ok=True)
+    logger.info(f"workarea {workarea} created.")
+    logger.info("preparing command...")
     print(command)
     
      
@@ -87,10 +85,6 @@ def job( args ):
         targetpath = f"{targetpath}/{filename}"
         sourcepath = f"{workarea}/{filename}"
         outputs.append( (sourcepath, targetpath) )
-
-
-    print(outputs)
-    print(command)
         
     entrypoint = f"{workarea}/entrypoint.sh"
     with open(entrypoint,'w') as f:
@@ -99,6 +93,7 @@ def job( args ):
             
     ok=True
     try:
+        logger.info("preparing singularity command...")
         binds   = f''
         for key,value in task_binds.items():
             binds+= f' --bind {key}:{value}'
@@ -120,13 +115,16 @@ def job( args ):
         pprint(envs)
         
         logger.info("🚀 run job!")   
-        print(command)
+        logger.info(f"command: {command}")
+        
+        logger.info("starting the process...")
         proc = Popen(command, envs = envs)
+        logger.info("process started.")
         proc.run_async()
+        
+        logger.info("updating job status to running...")
         job_service.update_status(status.RUNNING)
         proc.join()
-        #ram = MemoryMonitor()
-
         while proc.is_alive():
             sleep(10)
             job_service.ping()
@@ -146,7 +144,7 @@ def job( args ):
         logger.error("job execution failed.")
         sys.exit(0)
     
-    
+    logger.info("job execution completed.")
     if proc.status()!="completed":
         logger.error(f"something happing during the job execution. exiting with status {proc.status()}")
         job_service.update_status(status.FAILED)
@@ -155,7 +153,7 @@ def job( args ):
     
     logger.info("uploading output files into the storage...")
     for filename, targetpath in outputs:
-
+        logger.info(f"uploading output file {filename} to storage location {targetpath}...")
         if os.path.exists(filename):
             shutil.move( filename, targetpath)
             symlink( targetpath, filename )
@@ -164,6 +162,7 @@ def job( args ):
             job_service.update_status(status.FAILED)
             sys.exit(0)
             
+    logger.info("job completed successfully.")
     job_service.ping()
     job_service.update_status(status.COMPLETED)
     sys.exit(0)
